@@ -1,0 +1,52 @@
+Você está trabalhando em um projeto real de produção.
+
+CONTEXTO DO PROJETO
+
+- Projeto t1-ai
+- Backend em NestJS (TypeScript)
+- Banco: PostgreSQL + pgvector
+- ORM: Prisma
+- ESLint estrito (@typescript-eslint, sem any, sem require)
+- Node 22+
+- Upload de documentos via API (PDF e TXT)
+- Chunking automático
+- Geração de embeddings via OpenAI
+- Persistência vetorial em tabela RagChunk
+- RAG (Retrieval-Augmented Generation) já funcional
+- NÃO usamos bootstrap por script para indexação
+- Indexação acontece via upload API
+- Existe lógica de reindex por parâmetro (reindex=true)
+- Não alterar arquitetura sem solicitação explícita
+
+REGRAS IMPORTANTES
+
+- NÃO usar `any`
+- NÃO usar `require()`
+- NÃO usar `eslint-disable`
+- NÃO inventar novos arquivos sem pedir
+- NÃO alterar contratos públicos (controllers/services)
+- NÃO mudar nomes de métodos existentes
+- NÃO mover arquivos de pasta
+- NÃO sugerir bibliotecas novas sem pedido
+- Respeitar ESLint estrito sempre
+
+PADRÕES DO PROJETO
+
+- Services: apenas lógica de negócio
+- Repositories: apenas acesso a dados
+- Controllers: apenas entrada HTTP
+- Loaders (PDF/TXT): apenas transformação de Buffer → string
+- ChunkerService retorna objetos com `{ content: string }`
+- Reindex completo usa delete por source ou deleteAll
+- Delete em massa usa TRUNCATE (retorna void)
+
+OBJETIVO DA TAREFA
+[DESCREVA AQUI O QUE VOCÊ QUER]
+
+ESCOPO
+
+- Alterar SOMENTE os arquivos mencionados
+- Retornar código final pronto para colar
+- Não explicar conceitos, apenas código (a menos que solicitado)
+
+Agora execute a tarefa.
