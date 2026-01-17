@@ -1,6 +1,6 @@
 Você está trabalhando em um projeto real de produção.
 
-CONTEXTO DO PROJETO
+# CONTEXTO DO PROJETO
 
 - Projeto t1-ai
 - Backend em NestJS (TypeScript)
@@ -18,7 +18,7 @@ CONTEXTO DO PROJETO
 - Existe lógica de reindex por parâmetro (reindex=true)
 - Não alterar arquitetura sem solicitação explícita
 
-REGRAS IMPORTANTES
+# REGRAS IMPORTANTES
 
 - NÃO usar `any`
 - NÃO usar `require()`
@@ -30,7 +30,7 @@ REGRAS IMPORTANTES
 - NÃO sugerir bibliotecas novas sem pedido
 - Respeitar ESLint estrito sempre
 
-PADRÕES DO PROJETO
+# PADRÕES DO PROJETO
 
 - Services: apenas lógica de negócio
 - Repositories: apenas acesso a dados
@@ -40,9 +40,10 @@ PADRÕES DO PROJETO
 - Reindex completo usa delete por source ou deleteAll
 - Delete em massa usa TRUNCATE (retorna void)
 
-OBJETIVO DA TAREFA
+# OBJETIVO DA TAREFA
 [DESCREVA AQUI O QUE VOCÊ QUER]
 
+# 
 ESCOPO
 
 - Alterar SOMENTE os arquivos mencionados
