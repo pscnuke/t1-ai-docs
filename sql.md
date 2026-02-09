@@ -33,10 +33,16 @@ select "tenantType", "key", "name", "createdAt" from "MessageCategoryTemplate" o
 SELECT "tenantId", "key", "name", "createdAt" FROM "MessageCategory";
 ```
 
-# consulta PromptPackTemplate
+## Consulta os PromptPack
 
-select "tenantType", "key", "createdAt", "updatedAt" from "PromptPackTemplate";
+```sql
+# consulta aos templates de Prompt Packs [PromptPackTemplate]
+select "tenantType", "key", "createdAt", "updatedAt" from "PromptPackTemplate" order by "tenantType";
+select "tenantType", "key", "createdAt", "updatedAt" from "PromptPackTemplate" where "tenantType" = 'CLINIC' and "key" = 'INTENTION_RULES';
+select "tenantType", "key", "content" from "PromptPackTemplate" where "tenantType" = 'CLINIC' and "key" = 'INTENTION_RULES';
 
-```
-
+# consulta aos Prompt Packs do tenant [PromptPack]
+select "tenantId", "key" from "PromptPack";
+select "tenantId", "key", "content" from "PromptPack" where "tenantId" = 'clinica_orto_exemplo' and "key" = 'FALLBACK';
+select "tenantId", "key", "content" from "PromptPack" where "tenantId" = 'clinica_orto_exemplo' and "key" = 'INTENTION_RULES';
 ```
