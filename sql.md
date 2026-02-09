@@ -13,6 +13,16 @@ psql -U rag_user -d rag_db
 # lista tabelas
 \dt
 
+# listar bancos
+\l
+
+# listar extensões
+\dx
+
+# ver usuário corrente
+SELECT current_user, session_user;
+
+
 #contar registros de uma tabela (testar)
 SELECT COUNT(*) FROM "RagChunk";
 
