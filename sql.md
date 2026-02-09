@@ -3,9 +3,12 @@
 ```bash
 # conectar banco
 psql -U rag_user -d rag_db
+
 ```
 
 ```sql
+# ver usuários
+\du
 
 # lista tabelas
 \dt
