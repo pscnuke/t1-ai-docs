@@ -1,7 +1,9 @@
 # Back log de funcionalidades do back-end de IA
 
-1. Resumo das conversas - FEITO
-2. Reescrever a resposta
+- Resumo das conversas - FEITO
+- Reescrever a resposta
+- Colocar endpoint /conversations/summary para dentro de /ia/summary
+
 3. Responder a conversas e não a simplesmente mensagens
 4. Sugestão de respostas
 5. Regras operacionais temporárias
