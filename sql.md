@@ -57,5 +57,17 @@ select "tenantType", "key", "content" from "PromptPackTemplate" where "tenantTyp
 # consulta aos Prompt Packs do tenant [PromptPack]
 select "tenantId", "key" from "PromptPack";
 select "tenantId", "key", "content" from "PromptPack" where "tenantId" = 'clinica_orto_exemplo' and "key" = 'FALLBACK';
+select
+  "id",
+  "tenantId",
+  "key",
+  "content",
+  "createdAt",
+  "updatedAt"
+from "PromptPack"
+where "key" = 'CONVERSATION_SUMMARY';
+
+
+
 select "tenantId", "key", "content" from "PromptPack" where "tenantId" = 'clinica_orto_exemplo' and "key" = 'INTENTION_RULES';
 ```
