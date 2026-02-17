@@ -7,6 +7,6 @@
 - Atualizar módulo de categories - FEITO
 - Responder a conversas e não a simplesmente mensagens - FEITO
 - Ao criar tenant, retirar retorno das categorias e prompts pack - FEITO
-- Implementar a possibilidade de enviar apenas uma mensagem para o chat (atualemnte só conjunto de mensagens) -
+- Implementar a possibilidade de enviar apenas uma mensagem para o chat (atualemnte só conjunto de mensagens) - FEITO
 - Sugestão de respostas
 - Regras operacionais temporárias
