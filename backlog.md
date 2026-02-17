@@ -8,5 +8,5 @@
 - Responder a conversas e não a simplesmente mensagens - FEITO
 - Ao criar tenant, retirar retorno das categorias e prompts pack - FEITO
 - Implementar a possibilidade de enviar apenas uma mensagem para o chat (atualemnte só conjunto de mensagens) - FEITO
-- Sugestão de respostas
-- Regras operacionais temporárias
+- Sugestão de respostas - FEITO
+- Regras operacionais temporárias ou não
