@@ -11,11 +11,16 @@
             "description": "Resposta do healthcheck.",
             "content": {
               "application/json": {
-                "schema": { "type": "string", "example": "RAG no ar!" }
+                "schema": {
+                  "type": "string",
+                  "example": "t1-ai API de IA operacional."
+                }
               }
             }
           },
-          "500": { "description": "Erro interno." }
+          "500": {
+            "description": "Erro interno."
+          }
         },
         "summary": "Healthcheck simples",
         "tags": ["App"]
@@ -31,11 +36,15 @@
             "description": "Ambiente atual do app.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/AppEnvResponseDto" }
+                "schema": {
+                  "$ref": "#/components/schemas/AppEnvResponseDto"
+                }
               }
             }
           },
-          "500": { "description": "Erro interno." }
+          "500": {
+            "description": "Erro interno."
+          }
         },
         "summary": "Informacoes de ambiente",
         "tags": ["App"]
@@ -51,7 +60,9 @@
             "required": true,
             "in": "header",
             "description": "Identificador do tenant usado para resolver o conjunto de documentos indexados no contexto correto.",
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -61,12 +72,16 @@
               "application/json": {
                 "schema": {
                   "type": "array",
-                  "items": { "$ref": "#/components/schemas/IndexedDocumentDto" }
+                  "items": {
+                    "$ref": "#/components/schemas/IndexedDocumentDto"
+                  }
                 }
               }
             }
           },
-          "400": { "description": "tenantId inválido." },
+          "400": {
+            "description": "tenantId inválido."
+          },
           "500": {
             "description": "Erro interno ao consultar documentos indexados do tenant."
           }
@@ -83,14 +98,19 @@
             "required": true,
             "in": "header",
             "description": "Identificador do tenant alvo da limpeza completa de documentos indexados.",
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           },
           {
             "name": "confirm",
             "required": true,
             "in": "query",
             "description": "Confirmação explícita obrigatória. Deve ser exatamente `true` para liberar a exclusão total.",
-            "schema": { "example": "true", "type": "string" }
+            "schema": {
+              "example": "true",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -104,59 +124,14 @@
               }
             }
           },
-          "400": { "description": "tenantId inválido." },
+          "400": {
+            "description": "tenantId inválido."
+          },
           "500": {
             "description": "Erro interno durante exclusão total dos documentos indexados."
           }
         },
         "summary": "Excluir todos os documentos do RAG por tenantId",
-        "tags": ["RAG"]
-      }
-    },
-    "/rag/chat": {
-      "post": {
-        "description": "Executa o pipeline completo de atendimento com RAG no contexto do tenant: valida entrada, aplica guardrails, classifica a mensagem, realiza busca híbrida de contexto, chama o LLM quando há evidência suficiente e retorna resposta com métricas de qualidade e status de bloqueio. O endpoint foi desenhado para uso operacional em produção, com observabilidade e isolamento multi-tenant estrito.",
-        "operationId": "RagController_chat",
-        "parameters": [
-          {
-            "name": "x-tenant-id",
-            "required": true,
-            "in": "header",
-            "description": "Identificador do tenant para carregamento de prompt packs, regras de intenção e base vetorial correspondente.",
-            "schema": { "type": "string" }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/RagChatDto" },
-              "examples": {
-                "padrao": {
-                  "summary": "Pergunta simples",
-                  "value": { "message": "Qual o horario de atendimento?" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Resposta final do fluxo de chat com classificação da mensagem, score de qualidade e indicador de bloqueio quando guardrails são acionados.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/RagChatResponseDto" }
-              }
-            }
-          },
-          "400": {
-            "description": "Entrada inválida, tenant ausente/inválido ou falha de validação de payload."
-          },
-          "500": {
-            "description": "Erro interno inesperado durante execução do pipeline RAG para o tenant."
-          }
-        },
-        "summary": "Chat RAG",
         "tags": ["RAG"]
       }
     },
@@ -170,14 +145,19 @@
             "required": true,
             "in": "path",
             "description": "Nome da origem indexada (por exemplo nome de arquivo) cujos chunks devem ser removidos.",
-            "schema": { "example": "faq.pdf", "type": "string" }
+            "schema": {
+              "example": "faq.pdf",
+              "type": "string"
+            }
           },
           {
             "name": "x-tenant-id",
             "required": true,
             "in": "header",
             "description": "Identificador do tenant no qual a remoção de chunks por source será executada.",
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -191,14 +171,152 @@
               }
             }
           },
-          "400": { "description": "tenantId inválido." },
-          "404": { "description": "Source não encontrada." },
+          "400": {
+            "description": "tenantId inválido."
+          },
+          "404": {
+            "description": "Source não encontrada."
+          },
           "500": {
             "description": "Erro interno durante remoção de chunks por source."
           }
         },
         "summary": "Excluir documento do RAG por origem (source). Dado um arquivo, o exclui",
         "tags": ["RAG"]
+      }
+    },
+    "/ai/chat": {
+      "post": {
+        "description": "Executa o fluxo principal de chat de IA no contexto do tenant, incluindo validação de payload, guardrails de segurança/compliance, classificação da mensagem, retrieval híbrido e geração final com avaliação de qualidade. Este endpoint aceita dois formatos de entrada no body: `messages[]` (conversa estruturada completa) ou `message` (mensagem simples de um único turno). Ambos são opcionais no schema, porém a requisição é inválida se nenhum deles for enviado. Regra de precedência: quando `messages[]` e `message` forem enviados ao mesmo tempo, o backend sempre prioriza `messages[]` e ignora `message`. Em `messages[]`, cada item segue o contrato de /ai/conversations/summary: `id`, `role` (`customer`, `agent`, `assistant`), `text`, `createdAt` (ISO) e `author` (`author.id` obrigatório, `author.name` opcional). Os campos `summary` e `conversationId` permanecem opcionais para contexto e rastreabilidade operacional. Neste endpoint, o backend não persiste transcript completo nem resumo: usa os dados apenas em memória para compor contexto da resposta atual.",
+        "operationId": "AiChatController_chat",
+        "parameters": [
+          {
+            "name": "x-tenant-id",
+            "required": true,
+            "in": "header",
+            "description": "Identificador do tenant para carregamento de prompt packs, regras de intenção e base vetorial correspondente.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Payload do chat de IA aceitando conversa estruturada (`messages[]`) ou mensagem simples (`message`). Pelo menos um dos dois campos deve ser enviado. Se ambos forem enviados, `messages[]` terá prioridade e `message` será ignorado. `summary` e `conversationId` são opcionais.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RagChatDto"
+              },
+              "examples": {
+                "conversaEstruturada": {
+                  "summary": "Formato recomendado: conversa estruturada completa com 3 papeis + summary opcional + conversationId para observabilidade",
+                  "value": {
+                    "messages": [
+                      {
+                        "id": "m1",
+                        "role": "customer",
+                        "author": {
+                          "id": "wa:+5511999999999",
+                          "name": "Paulo"
+                        },
+                        "text": "Oi! Voces atendem Unimed?",
+                        "createdAt": "2026-02-12T12:01:10.000Z"
+                      },
+                      {
+                        "id": "m2",
+                        "role": "agent",
+                        "author": {
+                          "id": "user_77",
+                          "name": "Maria"
+                        },
+                        "text": "Bom dia, Paulo. Sim, atendemos Unimed e Amil.",
+                        "createdAt": "2026-02-12T12:01:40.000Z"
+                      },
+                      {
+                        "id": "m3",
+                        "role": "customer",
+                        "author": {
+                          "id": "wa:+5511999999999",
+                          "name": "Paulo"
+                        },
+                        "text": "Perfeito. E qual o horario de atendimento?",
+                        "createdAt": "2026-02-13T09:02:00.000Z"
+                      },
+                      {
+                        "id": "m4",
+                        "role": "assistant",
+                        "author": {
+                          "id": "rag-bot",
+                          "name": "Assistente"
+                        },
+                        "text": "Atendemos segunda a sexta, das 8h as 18h. Sabados, das 8h as 12h.",
+                        "createdAt": "2026-02-13T09:02:10.000Z"
+                      }
+                    ],
+                    "conversationId": "whatsapp:+5511999999999|2026-02-13",
+                    "summary": "Resumo: cliente perguntou sobre convenios aceitos e horario de atendimento; conversa teve respostas de atendente humano e assistente IA."
+                  }
+                },
+                "mensagemSimples": {
+                  "summary": "Entrada de turno único sem histórico estruturado, usando somente o campo message.",
+                  "value": {
+                    "message": "Qual o horario de atendimento hoje?",
+                    "conversationId": "whatsapp:+5511999999999|single-turn"
+                  }
+                },
+                "precedenciaMessages": {
+                  "summary": "Quando messages[] e message são enviados juntos, messages[] é sempre priorizado.",
+                  "value": {
+                    "message": "Texto simples que sera ignorado por causa de messages[].",
+                    "messages": [
+                      {
+                        "id": "m1",
+                        "role": "customer",
+                        "author": {
+                          "id": "wa:+5511888888888",
+                          "name": "Carla"
+                        },
+                        "text": "Voces atendem Bradesco Saude?",
+                        "createdAt": "2026-02-14T08:00:00.000Z"
+                      },
+                      {
+                        "id": "m2",
+                        "role": "agent",
+                        "author": {
+                          "id": "user_88",
+                          "name": "Joana"
+                        },
+                        "text": "Sim, atendemos Bradesco Saude e SulAmerica.",
+                        "createdAt": "2026-02-14T08:00:20.000Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Resposta final do fluxo de chat com classificação da mensagem, score de qualidade e indicador de bloqueio quando guardrails são acionados.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RagChatResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida, tenant ausente/inválido ou falha de validação de payload."
+          },
+          "500": {
+            "description": "Erro interno inesperado durante execução do pipeline RAG para o tenant."
+          }
+        },
+        "summary": "Chat IA",
+        "tags": ["AI"]
       }
     },
     "/ai/conversations/summary": {
@@ -211,7 +329,9 @@
             "required": true,
             "in": "header",
             "description": "Tenant ID.",
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -250,7 +370,10 @@
                       {
                         "id": "m3",
                         "role": "assistant",
-                        "author": { "id": "rag-bot", "name": "Assistente" },
+                        "author": {
+                          "id": "rag-bot",
+                          "name": "Assistente"
+                        },
                         "text": "Consulta remarcada para amanhã às 10h.",
                         "createdAt": "2026-02-13T10:00:22.000Z"
                       }
@@ -275,8 +398,12 @@
               }
             }
           },
-          "400": { "description": "Entrada inválida." },
-          "500": { "description": "Erro interno." }
+          "400": {
+            "description": "Entrada inválida."
+          },
+          "500": {
+            "description": "Erro interno."
+          }
         },
         "summary": "Gerar resumo de conversa com IA",
         "tags": ["AI"]
@@ -292,14 +419,19 @@
             "required": false,
             "in": "query",
             "description": "Quando `true`, remove previamente os chunks da mesma source antes de indexar novamente o arquivo atual.",
-            "schema": { "example": "true", "type": "string" }
+            "schema": {
+              "example": "true",
+              "type": "string"
+            }
           },
           {
             "name": "x-tenant-id",
             "required": true,
             "in": "header",
             "description": "Identificador do tenant para garantir indexação isolada e sem mistura de dados entre clientes.",
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -309,7 +441,10 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "file": { "type": "string", "format": "binary" }
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
                 },
                 "required": ["file"]
               }
@@ -321,7 +456,9 @@
             "description": "Resultado da ingestão contendo metadados de processamento, quantidade de chunks e status final de indexação.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/RagUploadResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/RagUploadResponse"
+                }
               }
             }
           },
@@ -360,20 +497,26 @@
             "required": true,
             "in": "query",
             "description": "Identificador do tenant cujos logs serão consultados.",
-            "schema": { "example": "tenant_a", "type": "string" }
+            "schema": {
+              "example": "tenant_a",
+              "type": "string"
+            }
           },
           {
             "name": "limit",
             "required": false,
             "in": "query",
             "description": "Quantidade máxima de registros por página. Valor final é limitado a 100.",
-            "schema": { "example": "20", "type": "string" }
+            "schema": {
+              "example": "20",
+              "type": "string"
+            }
           },
           {
             "name": "cursor",
             "required": false,
             "in": "query",
-            "description": "Cursor da página anterior no formato `<createdAt>|<id>` para paginação contínua.",
+            "description": "Cursor da página anterior no formato `\u003CcreatedAt\u003E|\u003Cid\u003E` para paginação contínua.",
             "schema": {
               "example": "2025-01-22T10:30:00.000Z|uuid",
               "type": "string"
@@ -391,7 +534,9 @@
               }
             }
           },
-          "400": { "description": "tenantId ou limit inválido." },
+          "400": {
+            "description": "tenantId ou limit inválido."
+          },
           "500": {
             "description": "Erro interno durante consulta paginada de logs de IA."
           }
@@ -420,7 +565,10 @@
             "required": true,
             "in": "query",
             "description": "Identificador do tenant proprietário do log.",
-            "schema": { "example": "tenant_a", "type": "string" }
+            "schema": {
+              "example": "tenant_a",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -428,12 +576,18 @@
             "description": "Registro de log retornado com metadados completos de execução da IA.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/AiMessageLogDto" }
+                "schema": {
+                  "$ref": "#/components/schemas/AiMessageLogDto"
+                }
               }
             }
           },
-          "400": { "description": "tenantId inválido." },
-          "404": { "description": "Log não encontrado." },
+          "400": {
+            "description": "tenantId inválido."
+          },
+          "404": {
+            "description": "Log não encontrado."
+          },
           "500": {
             "description": "Erro interno ao buscar log específico por ID."
           }
@@ -462,7 +616,9 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/ResolveAiLogDto" },
+              "schema": {
+                "$ref": "#/components/schemas/ResolveAiLogDto"
+              },
               "examples": {
                 "resolvido": {
                   "summary": "Resolvido por humano",
@@ -481,13 +637,21 @@
             "description": "Log atualizado com sucesso com os campos de resolução humana persistidos.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/AiMessageLogDto" }
+                "schema": {
+                  "$ref": "#/components/schemas/AiMessageLogDto"
+                }
               }
             }
           },
-          "400": { "description": "Payload inválido." },
-          "404": { "description": "Log não encontrado." },
-          "500": { "description": "Erro interno." }
+          "400": {
+            "description": "Payload inválido."
+          },
+          "404": {
+            "description": "Log não encontrado."
+          },
+          "500": {
+            "description": "Erro interno."
+          }
         },
         "summary": "Marcar log como resolvido",
         "tags": ["Admin AI Logs"]
@@ -503,21 +667,30 @@
             "required": true,
             "in": "query",
             "description": "Identificador do tenant para cálculo das métricas resumidas.",
-            "schema": { "example": "tenant_a", "type": "string" }
+            "schema": {
+              "example": "tenant_a",
+              "type": "string"
+            }
           },
           {
             "name": "from",
             "required": false,
             "in": "query",
             "description": "Data/hora inicial do intervalo analítico (aceita `YYYY-MM-DD` ou timestamp ISO).",
-            "schema": { "example": "2025-01-01", "type": "string" }
+            "schema": {
+              "example": "2025-01-01",
+              "type": "string"
+            }
           },
           {
             "name": "to",
             "required": false,
             "in": "query",
             "description": "Data/hora final do intervalo analítico (aceita `YYYY-MM-DD` ou timestamp ISO).",
-            "schema": { "example": "2025-01-31", "type": "string" }
+            "schema": {
+              "example": "2025-01-31",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -525,11 +698,15 @@
             "description": "Métricas agregadas e taxas percentuais por tipo de resposta no intervalo solicitado.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/SummaryMetricsDto" }
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryMetricsDto"
+                }
               }
             }
           },
-          "400": { "description": "tenantId inválido." },
+          "400": {
+            "description": "tenantId inválido."
+          },
           "500": {
             "description": "Erro interno ao calcular métricas resumidas do tenant."
           }
@@ -548,21 +725,30 @@
             "required": true,
             "in": "query",
             "description": "Identificador do tenant para geração da série temporal.",
-            "schema": { "example": "tenant_a", "type": "string" }
+            "schema": {
+              "example": "tenant_a",
+              "type": "string"
+            }
           },
           {
             "name": "from",
             "required": false,
             "in": "query",
             "description": "Data/hora inicial do intervalo da série temporal.",
-            "schema": { "example": "2025-01-01", "type": "string" }
+            "schema": {
+              "example": "2025-01-01",
+              "type": "string"
+            }
           },
           {
             "name": "to",
             "required": false,
             "in": "query",
             "description": "Data/hora final do intervalo da série temporal.",
-            "schema": { "example": "2025-01-31", "type": "string" }
+            "schema": {
+              "example": "2025-01-31",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -579,7 +765,9 @@
               }
             }
           },
-          "400": { "description": "tenantId inválido." },
+          "400": {
+            "description": "tenantId inválido."
+          },
           "500": {
             "description": "Erro interno ao calcular série temporal de métricas."
           }
@@ -598,21 +786,30 @@
             "required": false,
             "in": "query",
             "description": "Data/hora inicial do intervalo de análise global entre tenants.",
-            "schema": { "example": "2025-01-01", "type": "string" }
+            "schema": {
+              "example": "2025-01-01",
+              "type": "string"
+            }
           },
           {
             "name": "to",
             "required": false,
             "in": "query",
             "description": "Data/hora final do intervalo de análise global entre tenants.",
-            "schema": { "example": "2025-01-31", "type": "string" }
+            "schema": {
+              "example": "2025-01-31",
+              "type": "string"
+            }
           },
           {
             "name": "limit",
             "required": false,
             "in": "query",
             "description": "Quantidade máxima de tenants retornados no ranking (máximo 100).",
-            "schema": { "example": "10", "type": "string" }
+            "schema": {
+              "example": "10",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -629,7 +826,9 @@
               }
             }
           },
-          "400": { "description": "limit inválido." },
+          "400": {
+            "description": "limit inválido."
+          },
           "500": {
             "description": "Erro interno ao gerar ranking de fallback por tenant."
           }
@@ -648,28 +847,40 @@
             "required": true,
             "in": "query",
             "description": "Identificador do tenant para cálculo do ranking de mensagens com falha.",
-            "schema": { "example": "tenant_a", "type": "string" }
+            "schema": {
+              "example": "tenant_a",
+              "type": "string"
+            }
           },
           {
             "name": "from",
             "required": false,
             "in": "query",
             "description": "Data/hora inicial do intervalo de análise das mensagens.",
-            "schema": { "example": "2025-01-01", "type": "string" }
+            "schema": {
+              "example": "2025-01-01",
+              "type": "string"
+            }
           },
           {
             "name": "to",
             "required": false,
             "in": "query",
             "description": "Data/hora final do intervalo de análise das mensagens.",
-            "schema": { "example": "2025-01-31", "type": "string" }
+            "schema": {
+              "example": "2025-01-31",
+              "type": "string"
+            }
           },
           {
             "name": "limit",
             "required": false,
             "in": "query",
             "description": "Quantidade máxima de mensagens retornadas no ranking (máximo 100).",
-            "schema": { "example": "10", "type": "string" }
+            "schema": {
+              "example": "10",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -686,7 +897,9 @@
               }
             }
           },
-          "400": { "description": "tenantId ou limit inválido." },
+          "400": {
+            "description": "tenantId ou limit inválido."
+          },
           "500": {
             "description": "Erro interno ao gerar ranking de mensagens com falha."
           }
@@ -705,28 +918,40 @@
             "required": true,
             "in": "query",
             "description": "Identificador do tenant para leitura dos logs e geração das sugestões.",
-            "schema": { "example": "tenant_a", "type": "string" }
+            "schema": {
+              "example": "tenant_a",
+              "type": "string"
+            }
           },
           {
             "name": "days",
             "required": false,
             "in": "query",
             "description": "Janela de dias retroativos analisada para montar candidatos (intervalo de 1 a 365).",
-            "schema": { "example": "30", "type": "string" }
+            "schema": {
+              "example": "30",
+              "type": "string"
+            }
           },
           {
             "name": "limit",
             "required": false,
             "in": "query",
             "description": "Limite máximo de mensagens recentes avaliadas no processo de sugestão (1 a 2000).",
-            "schema": { "example": "500", "type": "string" }
+            "schema": {
+              "example": "500",
+              "type": "string"
+            }
           },
           {
             "name": "perIntent",
             "required": false,
             "in": "query",
             "description": "Quantidade máxima de sugestões retornadas por intenção (1 a 50).",
-            "schema": { "example": "10", "type": "string" }
+            "schema": {
+              "example": "10",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -740,7 +965,9 @@
               }
             }
           },
-          "400": { "description": "Parametros invalidos." },
+          "400": {
+            "description": "Parametros invalidos."
+          },
           "500": {
             "description": "Erro interno durante geração de sugestões de exemplos."
           }
@@ -789,7 +1016,9 @@
               }
             }
           },
-          "400": { "description": "Body inválido." },
+          "400": {
+            "description": "Body inválido."
+          },
           "500": {
             "description": "Erro interno durante aplicação de exemplos de intenção."
           }
@@ -808,7 +1037,10 @@
             "required": true,
             "in": "path",
             "description": "Identificador do tenant.",
-            "schema": { "example": "clinica_super_med", "type": "string" }
+            "schema": {
+              "example": "clinica_super_med",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -822,8 +1054,12 @@
               }
             }
           },
-          "400": { "description": "tenantId inválido." },
-          "404": { "description": "Tenant não encontrado." }
+          "400": {
+            "description": "tenantId inválido."
+          },
+          "404": {
+            "description": "Tenant não encontrado."
+          }
         },
         "summary": "Listar prompt-packs do tenant",
         "tags": ["Admin Prompt Packs"]
@@ -839,7 +1075,10 @@
             "required": true,
             "in": "path",
             "description": "Identificador do tenant.",
-            "schema": { "example": "clinica_super_med", "type": "string" }
+            "schema": {
+              "example": "clinica_super_med",
+              "type": "string"
+            }
           },
           {
             "name": "key",
@@ -865,7 +1104,9 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/UpdatePromptPackDto" }
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePromptPackDto"
+              }
             }
           }
         },
@@ -874,12 +1115,18 @@
             "description": "",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/PromptPackDto" }
+                "schema": {
+                  "$ref": "#/components/schemas/PromptPackDto"
+                }
               }
             }
           },
-          "400": { "description": "tenantId, key ou body invalidos." },
-          "404": { "description": "Tenant não encontrado." }
+          "400": {
+            "description": "tenantId, key ou body invalidos."
+          },
+          "404": {
+            "description": "Tenant não encontrado."
+          }
         },
         "summary": "Atualizar prompt-pack do tenant",
         "tags": ["Admin Prompt Packs"]
@@ -895,7 +1142,10 @@
             "required": true,
             "in": "path",
             "description": "Identificador do tenant.",
-            "schema": { "example": "clinica_super_med", "type": "string" }
+            "schema": {
+              "example": "clinica_super_med",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -909,8 +1159,12 @@
               }
             }
           },
-          "400": { "description": "tenantId inválido." },
-          "404": { "description": "Tenant não encontrado." }
+          "400": {
+            "description": "tenantId inválido."
+          },
+          "404": {
+            "description": "Tenant não encontrado."
+          }
         },
         "summary": "Reaplicar templates para tenant",
         "tags": ["Admin Prompt Packs"]
@@ -926,7 +1180,10 @@
             "required": true,
             "in": "path",
             "description": "Identificador do tenant.",
-            "schema": { "example": "clinica_super_med", "type": "string" }
+            "schema": {
+              "example": "clinica_super_med",
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -950,8 +1207,12 @@
               }
             }
           },
-          "400": { "description": "tenantId inválido." },
-          "404": { "description": "Tenant não encontrado." }
+          "400": {
+            "description": "tenantId inválido."
+          },
+          "404": {
+            "description": "Tenant não encontrado."
+          }
         },
         "summary": "Sincronizar prompt-packs do tenant com templates",
         "tags": ["Admin Prompt Packs"]
@@ -984,7 +1245,9 @@
               }
             }
           },
-          "400": { "description": "tenantType inválido." }
+          "400": {
+            "description": "tenantType inválido."
+          }
         },
         "summary": "Listar templates por TenantType",
         "tags": ["Admin Prompt Packs"]
@@ -1046,13 +1309,15 @@
               }
             }
           },
-          "400": { "description": "tenantType, key ou body invalidos." }
+          "400": {
+            "description": "tenantType, key ou body invalidos."
+          }
         },
         "summary": "Atualizar template por TenantType/key",
         "tags": ["Admin Prompt Packs"]
       }
     },
-    "/ai/rewrite": {
+    "/ai/messages/rewrite": {
       "post": {
         "description": "Reescreve um rascunho de atendimento mantendo o significado original e aplicando o estilo selecionado (concise, professional, friendly ou review). O endpoint é tenant-aware e resolve templates REWRITE_SYSTEM/REWRITE_USER do tenant no banco antes de chamar o LLM. O fluxo aplica validação de tenant via header x-tenant-id, executa guardrails de segurança/compliance para prompt injection e conteúdo sensível, e registra observabilidade no AiMessageLog com responseType REWRITE. Quando o guardrail bloqueia a execução, a resposta retorna blocked=true com texto seguro sem chamar o modelo.",
         "operationId": "AiRewriteController_rewrite",
@@ -1062,7 +1327,9 @@
             "required": true,
             "in": "header",
             "description": "Identificador do tenant usado para validar isolamento, carregar templates de rewrite e registrar log corretamente.",
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -1070,7 +1337,9 @@
           "description": "Payload com mensagem original, estilo desejado e idioma opcional para gerar a versão reescrita.",
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/AiRewriteRequestDto" }
+              "schema": {
+                "$ref": "#/components/schemas/AiRewriteRequestDto"
+              }
             }
           }
         },
@@ -1088,7 +1357,9 @@
           "400": {
             "description": "Payload inválido ou tenantId ausente/inválido."
           },
-          "403": { "description": "Tenant não encontrado." },
+          "403": {
+            "description": "Tenant não encontrado."
+          },
           "500": {
             "description": "Erro interno durante processamento da reescrita."
           }
@@ -1099,7 +1370,7 @@
     },
     "/admin/tenants": {
       "post": {
-        "description": "Cria um novo tenant com isolamento lógico completo, valida tenantId informado (quando presente), persiste o cadastro principal e aplica automaticamente os templates iniciais vinculados ao TenantType para categorias de mensagens e prompt-packs. O retorno já inclui os artefatos iniciais efetivamente aplicados para conferência administrativa, onboarding e auditoria de configuração inicial.",
+        "description": "Cria um novo tenant com isolamento lógico completo, valida tenantId informado (quando presente), persiste o cadastro principal e aplica automaticamente os templates iniciais vinculados ao TenantType para categorias de mensagens e prompt-packs. O endpoint retorna apenas os dados principais do tenant criado. Para consultar categorias e prompt-packs aplicados, use os endpoints administrativos específicos de listagem por tenant.",
         "operationId": "AdminTenantsController_createTenant",
         "parameters": [],
         "requestBody": {
@@ -1107,13 +1378,15 @@
           "description": "Payload de criação do tenant, incluindo nome, tipo de tenant e tenantId opcional. Quando tenantId é enviado, ele é normalizado e validado antes da persistência.",
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/CreateTenantDto" }
+              "schema": {
+                "$ref": "#/components/schemas/CreateTenantDto"
+              }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Tenant criado com sucesso, incluindo categorias e prompt-packs iniciais aplicados a partir dos templates do tipo de tenant.",
+            "description": "Tenant criado com sucesso.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1130,7 +1403,7 @@
           }
         },
         "summary": "Criar tenant e aplicar template de categorias de mensagens e prompt-packs",
-        "tags": ["admin/tenants"]
+        "tags": ["Admin Tenants"]
       }
     },
     "/admin/tenants/{tenantId}/messageCategories": {
@@ -1143,7 +1416,10 @@
             "required": true,
             "in": "path",
             "description": "Identificador do tenant alvo da consulta. Deve seguir o padrão alfanumérico com \"_\" ou \"-\".",
-            "schema": { "example": "clinica_super_med", "type": "string" }
+            "schema": {
+              "example": "clinica_super_med",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1157,14 +1433,18 @@
               }
             }
           },
-          "400": { "description": "tenantId inválido." },
-          "404": { "description": "Tenant não encontrado." },
+          "400": {
+            "description": "tenantId inválido."
+          },
+          "404": {
+            "description": "Tenant não encontrado."
+          },
           "500": {
             "description": "Erro interno ao buscar categorias do tenant informado."
           }
         },
         "summary": "Listar categorias de mensagens do tenant (admin)",
-        "tags": ["admin/tenants"]
+        "tags": ["Admin Tenants"]
       },
       "post": {
         "description": "Cria uma categoria customizada para um tenant específico, preservando isolamento por tenant e mantendo a categoria disponível para classificação de mensagens no fluxo operacional.",
@@ -1175,7 +1455,10 @@
             "required": true,
             "in": "path",
             "description": "Identificador do tenant no qual a categoria customizada será criada.",
-            "schema": { "example": "clinica_super_med", "type": "string" }
+            "schema": {
+              "example": "clinica_super_med",
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -1183,7 +1466,9 @@
           "description": "Dados da nova categoria customizada (nome, descrição, exemplos, cor e ordem de exibição).",
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/CreateCategoryDto" }
+              "schema": {
+                "$ref": "#/components/schemas/CreateCategoryDto"
+              }
             }
           }
         },
@@ -1192,20 +1477,24 @@
             "description": "Categoria criada com sucesso e pronta para uso nos fluxos de classificação.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/CategoryDto" }
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryDto"
+                }
               }
             }
           },
           "400": {
             "description": "tenantId inválido, tenant inexistente ou payload da categoria com dados inválidos."
           },
-          "404": { "description": "Tenant não encontrado." },
+          "404": {
+            "description": "Tenant não encontrado."
+          },
           "500": {
             "description": "Erro interno durante criação da categoria customizada."
           }
         },
         "summary": "Criar categoria de mensagem customizada (admin)",
-        "tags": ["admin/tenants"]
+        "tags": ["Admin Tenants"]
       }
     },
     "/admin/messageCategories/{messageCategoryId}": {
@@ -1218,7 +1507,9 @@
             "required": true,
             "in": "path",
             "description": "Identificador único da categoria de mensagem que será atualizada.",
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -1226,7 +1517,9 @@
           "description": "Payload com os campos permitidos para atualização da categoria, respeitando validações de domínio.",
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/UpdateCategoryDto" }
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCategoryDto"
+              }
             }
           }
         },
@@ -1235,20 +1528,24 @@
             "description": "Categoria atualizada com sucesso, retornando o estado final persistido.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/CategoryDto" }
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryDto"
+                }
               }
             }
           },
           "400": {
             "description": "Dados inválidos no payload ou tentativa de operação não permitida para categoria de sistema."
           },
-          "404": { "description": "Categoria não encontrada." },
+          "404": {
+            "description": "Categoria não encontrada."
+          },
           "500": {
             "description": "Erro interno durante atualização da categoria de mensagem."
           }
         },
         "summary": "Atualizar categoria de mensagem (admin)",
-        "tags": ["admin/messageCategories"]
+        "tags": ["Admin Categorias de Mensagens"]
       }
     },
     "/messageCategories": {
@@ -1261,7 +1558,9 @@
             "required": true,
             "in": "header",
             "description": "Identificador do tenant usado para resolver o conjunto de categorias ativas do contexto atual.",
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1275,17 +1574,21 @@
               }
             }
           },
-          "400": { "description": "tenantId inválido." },
-          "404": { "description": "Categoria não encontrada." },
+          "400": {
+            "description": "tenantId inválido."
+          },
+          "404": {
+            "description": "Categoria não encontrada."
+          },
           "500": {
             "description": "Erro interno ao carregar categorias ativas do tenant."
           }
         },
         "summary": "Listar categorias de mensagens do tenant",
-        "tags": ["messageCategories"]
+        "tags": ["Categorias de mensagens"]
       }
     },
-    "/messages/classify": {
+    "/ai/messages/classify": {
       "post": {
         "description": "Classifica uma mensagem textual com base no catálogo de categorias ativas do tenant e retorna categoria sugerida, confiança, justificativa e indicador de revisão humana. O fluxo é isolado por tenant e foi desenhado para apoiar triagem operacional, automações de atendimento e monitoramento de qualidade de classificação.",
         "operationId": "MessageClassificationController_classifyMessage",
@@ -1295,7 +1598,9 @@
             "required": true,
             "in": "header",
             "description": "Identificador do tenant usado para carregar categorias e regras de classificação no contexto correto.",
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -1303,7 +1608,9 @@
           "description": "Payload contendo a mensagem a ser classificada no contexto do tenant informado.",
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/ClassifyMessageDto" }
+              "schema": {
+                "$ref": "#/components/schemas/ClassifyMessageDto"
+              }
             }
           }
         },
@@ -1321,11 +1628,15 @@
           "400": {
             "description": "tenantId inválido, payload inválido ou falha de validação dos dados de entrada."
           },
-          "404": { "description": "Tenant não encontrado." },
-          "500": { "description": "Erro interno." }
+          "404": {
+            "description": "Tenant não encontrado."
+          },
+          "500": {
+            "description": "Erro interno."
+          }
         },
-        "summary": "Classificar mensagem por tenant",
-        "tags": ["Messages"]
+        "summary": "Classificar mensagem por tenant com IA",
+        "tags": ["AI"]
       }
     },
     "/internal/webhooks/whatsapp/process": {
@@ -1338,7 +1649,9 @@
             "in": "header",
             "description": "Token interno para chamadas do Cloud Function.",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -1362,10 +1675,18 @@
               }
             }
           },
-          "401": { "description": "Token interno inválido." },
-          "404": { "description": "Evento não encontrado." },
-          "409": { "description": "Evento em processamento." },
-          "503": { "description": "Falha temporária." }
+          "401": {
+            "description": "Token interno inválido."
+          },
+          "404": {
+            "description": "Evento não encontrado."
+          },
+          "409": {
+            "description": "Evento em processamento."
+          },
+          "503": {
+            "description": "Falha temporária."
+          }
         },
         "summary": "Processar evento interno do WhatsApp",
         "tags": ["Internal Webhooks"]
@@ -1381,13 +1702,18 @@
             "required": true,
             "in": "path",
             "description": "Identificador único da conversa no domínio de mensagens do tenant.",
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           },
           {
             "name": "tenantId",
             "required": false,
             "in": "query",
-            "schema": { "example": "tenant_a", "type": "string" }
+            "schema": {
+              "example": "tenant_a",
+              "type": "string"
+            }
           },
           {
             "name": "limit",
@@ -1406,20 +1732,28 @@
             "required": false,
             "in": "query",
             "description": "Cursor temporal para paginação retroativa, aceitando formato ISO-8601 ou epoch.",
-            "schema": { "$ref": "#/components/schemas/Object" }
+            "schema": {
+              "$ref": "#/components/schemas/Object"
+            }
           },
           {
             "name": "order",
             "required": false,
             "in": "query",
-            "schema": { "default": "desc", "type": "string", "enum": ["desc"] }
+            "schema": {
+              "default": "desc",
+              "type": "string",
+              "enum": ["desc"]
+            }
           },
           {
             "name": "x-tenant-id",
             "in": "header",
             "description": "Identificador do tenant para resolução de dados no contexto correto da conversa.",
             "required": false,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1452,14 +1786,18 @@
             "required": true,
             "in": "path",
             "description": "Identificador único da conversa para a qual a mensagem será enviada.",
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           },
           {
             "name": "x-tenant-id",
             "in": "header",
             "description": "Identificador do tenant responsável pelo envio outbound da mensagem.",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -1467,7 +1805,9 @@
           "description": "Payload da mensagem outbound, incluindo texto e metadados opcionais de mídia/template conforme DTO.",
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/SendMessageDto" }
+              "schema": {
+                "$ref": "#/components/schemas/SendMessageDto"
+              }
             }
           }
         },
@@ -1496,6 +1836,140 @@
         "tags": ["Messages"]
       }
     },
+    "/v1/conversations": {
+      "get": {
+        "description": "Retorna conversas armazenadas na collection conversations do Firestore, ordenadas por última mensagem e com paginação opcional via beforeTs. O endpoint é tenant-aware e aceita tenant por header ou query para uso em integrações operacionais.",
+        "operationId": "ConversationController_listConversations",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": false,
+            "in": "query",
+            "description": "Identificador do tenant (obrigatório quando o header x-tenant-id não estiver presente).",
+            "schema": {
+              "example": "tenant_a",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Quantidade máxima de conversas retornadas por chamada. Aceita valores entre 1 e 100.",
+            "schema": {
+              "maximum": 100,
+              "default": 50,
+              "example": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "beforeTs",
+            "required": false,
+            "in": "query",
+            "description": "Cursor temporal para paginação retroativa, aceitando formato ISO-8601 ou epoch.",
+            "schema": {
+              "$ref": "#/components/schemas/Object"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "desc",
+              "type": "string",
+              "enum": ["desc"]
+            }
+          },
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "description": "Identificador do tenant responsável pelo contexto das conversas a serem listadas.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversas listadas com sucesso, incluindo cursor opcional para paginação.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationListResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetros inválidos, tenant ausente/inválido ou formato de paginação inconsistente."
+          },
+          "500": {
+            "description": "Erro interno ao listar conversas no Firestore para o tenant informado."
+          }
+        },
+        "summary": "Lista conversas do tenant para o dashboard.",
+        "tags": ["Conversations"]
+      }
+    },
+    "/v1/conversations/{conversationId}": {
+      "get": {
+        "description": "Retorna os metadados principais de uma conversa a partir do Firestore, garantindo isolamento por tenant e validação de parâmetros. Útil para carregar detalhes rápidos do cabeçalho da conversa no dashboard.",
+        "operationId": "ConversationController_getConversation",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador único da conversa na collection conversations do tenant.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenantId",
+            "required": false,
+            "in": "query",
+            "description": "Identificador do tenant (obrigatório quando o header x-tenant-id não estiver presente).",
+            "schema": {}
+          },
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "description": "Identificador do tenant responsável pela conversa a ser consultada.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversa encontrada e retornada com sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationListItemDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetros inválidos ou tenant ausente/inválido."
+          },
+          "404": {
+            "description": "Conversa não encontrada para o tenant informado."
+          },
+          "500": {
+            "description": "Erro interno ao consultar conversa no Firestore para o tenant informado."
+          }
+        },
+        "summary": "Consulta detalhes de uma conversa específica.",
+        "tags": ["Conversations"]
+      }
+    },
     "/v1/kpis/overview": {
       "get": {
         "operationId": "KpiController_getOverview",
@@ -1505,7 +1979,10 @@
             "required": false,
             "in": "query",
             "description": "Tenant ID (obrigatório se header não informado).",
-            "schema": { "example": "tenant_123", "type": "string" }
+            "schema": {
+              "example": "tenant_123",
+              "type": "string"
+            }
           },
           {
             "name": "from",
@@ -1532,14 +2009,19 @@
             "required": false,
             "in": "query",
             "description": "Preset de range (substitui from/to).",
-            "schema": { "enum": ["24h", "7d", "30d"], "type": "string" }
+            "schema": {
+              "enum": ["24h", "7d", "30d"],
+              "type": "string"
+            }
           },
           {
             "name": "x-tenant-id",
             "in": "header",
             "description": "Tenant ID (alternativa ao query param tenantId).",
             "required": false,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1553,8 +2035,12 @@
               }
             }
           },
-          "400": { "description": "Parâmetros inválidos." },
-          "500": { "description": "Falha ao consultar Firestore." }
+          "400": {
+            "description": "Parâmetros inválidos."
+          },
+          "500": {
+            "description": "Falha ao consultar Firestore."
+          }
         },
         "summary": "KPIs overview do período",
         "tags": ["kpis"]
@@ -1569,7 +2055,10 @@
             "required": false,
             "in": "query",
             "description": "Tenant ID (obrigatório se header não informado).",
-            "schema": { "example": "tenant_123", "type": "string" }
+            "schema": {
+              "example": "tenant_123",
+              "type": "string"
+            }
           },
           {
             "name": "from",
@@ -1596,14 +2085,19 @@
             "required": false,
             "in": "query",
             "description": "Preset de range (substitui from/to).",
-            "schema": { "enum": ["24h", "7d", "30d"], "type": "string" }
+            "schema": {
+              "enum": ["24h", "7d", "30d"],
+              "type": "string"
+            }
           },
           {
             "name": "x-tenant-id",
             "in": "header",
             "description": "Tenant ID (alternativa ao query param tenantId).",
             "required": false,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1617,8 +2111,12 @@
               }
             }
           },
-          "400": { "description": "Parâmetros inválidos." },
-          "500": { "description": "Falha ao consultar Firestore." }
+          "400": {
+            "description": "Parâmetros inválidos."
+          },
+          "500": {
+            "description": "Falha ao consultar Firestore."
+          }
         },
         "summary": "Volume inbound do período",
         "tags": ["kpis"]
@@ -1633,7 +2131,10 @@
             "required": false,
             "in": "query",
             "description": "Tenant ID (obrigatório se header não informado).",
-            "schema": { "example": "tenant_123", "type": "string" }
+            "schema": {
+              "example": "tenant_123",
+              "type": "string"
+            }
           },
           {
             "name": "from",
@@ -1660,14 +2161,19 @@
             "required": false,
             "in": "query",
             "description": "Preset de range (substitui from/to).",
-            "schema": { "enum": ["24h", "7d", "30d"], "type": "string" }
+            "schema": {
+              "enum": ["24h", "7d", "30d"],
+              "type": "string"
+            }
           },
           {
             "name": "x-tenant-id",
             "in": "header",
             "description": "Tenant ID (alternativa ao query param tenantId).",
             "required": false,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1681,7 +2187,9 @@
               }
             }
           },
-          "400": { "description": "Parâmetros inválidos." }
+          "400": {
+            "description": "Parâmetros inválidos."
+          }
         },
         "summary": "Conversations que precisam de resposta (placeholder)",
         "tags": ["kpis"]
@@ -1696,7 +2204,10 @@
             "required": false,
             "in": "query",
             "description": "Tenant ID (obrigatório se header não informado).",
-            "schema": { "example": "tenant_123", "type": "string" }
+            "schema": {
+              "example": "tenant_123",
+              "type": "string"
+            }
           },
           {
             "name": "from",
@@ -1734,7 +2245,9 @@
             "in": "header",
             "description": "Tenant ID (alternativa ao query param tenantId).",
             "required": false,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1748,10 +2261,14 @@
               }
             }
           },
-          "400": { "description": "Parâmetros inválidos." },
-          "500": { "description": "Falha ao consultar Firestore." }
+          "400": {
+            "description": "Parâmetros inválidos."
+          },
+          "500": {
+            "description": "Falha ao consultar Firestore."
+          }
         },
-        "summary": "Quantidade de conversas em aberto com última inbound > 24h",
+        "summary": "Quantidade de conversas em aberto com última inbound \u003E 24h",
         "tags": ["kpis"]
       }
     },
@@ -1764,7 +2281,10 @@
             "required": false,
             "in": "query",
             "description": "Tenant ID (obrigatório se header não informado).",
-            "schema": { "example": "tenant_123", "type": "string" }
+            "schema": {
+              "example": "tenant_123",
+              "type": "string"
+            }
           },
           {
             "name": "from",
@@ -1802,7 +2322,9 @@
             "in": "header",
             "description": "Tenant ID (alternativa ao query param tenantId).",
             "required": false,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1816,8 +2338,12 @@
               }
             }
           },
-          "400": { "description": "Parâmetros inválidos." },
-          "500": { "description": "Falha ao consultar Firestore." }
+          "400": {
+            "description": "Parâmetros inválidos."
+          },
+          "500": {
+            "description": "Falha ao consultar Firestore."
+          }
         },
         "summary": "Quantidade de mensagens escalonadas",
         "tags": ["kpis"]
@@ -1832,7 +2358,10 @@
             "required": false,
             "in": "query",
             "description": "Tenant ID (obrigatório se header não informado).",
-            "schema": { "example": "tenant_123", "type": "string" }
+            "schema": {
+              "example": "tenant_123",
+              "type": "string"
+            }
           },
           {
             "name": "from",
@@ -1870,7 +2399,9 @@
             "in": "header",
             "description": "Tenant ID (alternativa ao query param tenantId).",
             "required": false,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1884,8 +2415,12 @@
               }
             }
           },
-          "400": { "description": "Parâmetros inválidos." },
-          "500": { "description": "Falha ao consultar Firestore." }
+          "400": {
+            "description": "Parâmetros inválidos."
+          },
+          "500": {
+            "description": "Falha ao consultar Firestore."
+          }
         },
         "summary": "Quantidade de violações de SLA",
         "tags": ["kpis"]
@@ -1900,7 +2435,10 @@
             "required": false,
             "in": "query",
             "description": "Tenant ID (obrigatório se header não informado).",
-            "schema": { "example": "tenant_123", "type": "string" }
+            "schema": {
+              "example": "tenant_123",
+              "type": "string"
+            }
           },
           {
             "name": "from",
@@ -1927,14 +2465,19 @@
             "required": false,
             "in": "query",
             "description": "Preset de range (substitui from/to).",
-            "schema": { "enum": ["24h", "7d", "30d"], "type": "string" }
+            "schema": {
+              "enum": ["24h", "7d", "30d"],
+              "type": "string"
+            }
           },
           {
             "name": "x-tenant-id",
             "in": "header",
             "description": "Tenant ID (alternativa ao query param tenantId).",
             "required": false,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1948,8 +2491,12 @@
               }
             }
           },
-          "400": { "description": "Parâmetros inválidos." },
-          "500": { "description": "Falha ao consultar Firestore." }
+          "400": {
+            "description": "Parâmetros inválidos."
+          },
+          "500": {
+            "description": "Falha ao consultar Firestore."
+          }
         },
         "summary": "KPIs overview \"My Chats\" do período",
         "tags": ["kpis"]
@@ -1969,16 +2516,28 @@
       "AppEnvResponseDto": {
         "type": "object",
         "properties": {
-          "appName": { "type": "string", "example": "t1-ai" },
-          "appEnv": { "type": "string", "example": "development" }
+          "appName": {
+            "type": "string",
+            "example": "t1-ai"
+          },
+          "appEnv": {
+            "type": "string",
+            "example": "development"
+          }
         },
         "required": ["appName", "appEnv"]
       },
       "IndexedDocumentDto": {
         "type": "object",
         "properties": {
-          "source": { "type": "string", "example": "faq.pdf" },
-          "chunks": { "type": "number", "example": 12 },
+          "source": {
+            "type": "string",
+            "example": "faq.pdf"
+          },
+          "chunks": {
+            "type": "number",
+            "example": 12
+          },
           "createdAt": {
             "type": "string",
             "example": "2025-01-22T10:30:00.000Z"
@@ -1986,71 +2545,24 @@
         },
         "required": ["source", "chunks", "createdAt"]
       },
-      "RagChatDto": {
-        "type": "object",
-        "properties": {
-          "message": {
-            "type": "string",
-            "example": "Quais sao os horarios de atendimento?",
-            "description": "Pergunta do usuario para o RAG."
-          }
-        },
-        "required": ["message"]
-      },
-      "RagQualityScoreDto": {
-        "type": "object",
-        "properties": {
-          "contextCoverage": { "type": "number", "example": 0.72 },
-          "genericPenalty": { "type": "number", "example": 0 },
-          "faithfulness": { "type": "number", "example": 1 },
-          "finalScore": { "type": "number", "example": 0.82 }
-        },
-        "required": [
-          "contextCoverage",
-          "genericPenalty",
-          "faithfulness",
-          "finalScore"
-        ]
-      },
-      "RagChatResponseDto": {
-        "type": "object",
-        "properties": {
-          "question": {
-            "type": "string",
-            "example": "Qual o horario de atendimento?"
-          },
-          "answer": {
-            "type": "string",
-            "example": "Atendemos de segunda a sexta, das 8h as 18h."
-          },
-          "classification": {
-            "type": "object",
-            "example": {
-              "messageCategoryId": "f2f5c2a0-1234-4b6f-9c6a-2f4a1d5d1c9a",
-              "categoryName": "Agendamento",
-              "confidence": 0.82,
-              "reason": "Mensagem indica solicitacao de agendamento."
-            }
-          },
-          "quality": { "$ref": "#/components/schemas/RagQualityScoreDto" },
-          "blocked": { "type": "boolean", "example": false }
-        },
-        "required": [
-          "question",
-          "answer",
-          "classification",
-          "quality",
-          "blocked"
-        ]
-      },
       "DeleteBySourceResponseDto": {
         "type": "object",
-        "properties": { "deleted": { "type": "number", "example": 12 } },
+        "properties": {
+          "deleted": {
+            "type": "number",
+            "example": 12
+          }
+        },
         "required": ["deleted"]
       },
       "DeleteAllResponseDto": {
         "type": "object",
-        "properties": { "success": { "type": "boolean", "example": true } },
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          }
+        },
         "required": ["success"]
       },
       "ConversationSummaryAuthorDto": {
@@ -2096,11 +2608,103 @@
           "author": {
             "description": "Autor obrigatório da mensagem. author.id é obrigatório e author.name é opcional.",
             "allOf": [
-              { "$ref": "#/components/schemas/ConversationSummaryAuthorDto" }
+              {
+                "$ref": "#/components/schemas/ConversationSummaryAuthorDto"
+              }
             ]
           }
         },
         "required": ["role", "text", "id", "createdAt", "author"]
+      },
+      "RagChatDto": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "description": "Conversa estruturada completa (mesmo padrão de /ai/conversations/summary). Cada item deve trazer `id`, `role`, `text`, `createdAt` e `author` (`author.id` obrigatório, `author.name` opcional). Campo opcional: use quando houver histórico da conversa. Se `messages[]` for enviado junto com `message`, o backend sempre prioriza `messages[]` para derivar o turno atual.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConversationSummaryMessageDto"
+            }
+          },
+          "message": {
+            "type": "string",
+            "example": "Qual o horario de atendimento?",
+            "description": "Mensagem simples opcional para cenários sem histórico estruturado. Use este campo quando houver apenas um turno de entrada. Se `messages[]` também for enviado, este campo é ignorado e prevalece `messages[]`."
+          },
+          "conversationId": {
+            "type": "string",
+            "example": "whatsapp:+5511999999999|2026-03-01",
+            "description": "Identificador opcional da conversa para rastreabilidade no log (AiMessageLog). Não gera persistência de histórico de conversa neste endpoint."
+          },
+          "summary": {
+            "type": "string",
+            "example": "Resumo: cliente perguntou sobre convenios e horarios; atendente informou horario comercial; agora pergunta se atende Unimed.",
+            "description": "Campo preferencial de resumo opcional enviado pelo front (compativel com /ai/conversations/summary). Serve para preservar contexto entre turnos, com limite de tamanho para nao degradar retrieval e sem persistencia deste conteudo."
+          }
+        }
+      },
+      "RagQualityScoreDto": {
+        "type": "object",
+        "properties": {
+          "contextCoverage": {
+            "type": "number",
+            "example": 0.72
+          },
+          "genericPenalty": {
+            "type": "number",
+            "example": 0
+          },
+          "faithfulness": {
+            "type": "number",
+            "example": 1
+          },
+          "finalScore": {
+            "type": "number",
+            "example": 0.82
+          }
+        },
+        "required": [
+          "contextCoverage",
+          "genericPenalty",
+          "faithfulness",
+          "finalScore"
+        ]
+      },
+      "RagChatResponseDto": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "example": "Qual o horario de atendimento?"
+          },
+          "answer": {
+            "type": "string",
+            "example": "Atendemos de segunda a sexta, das 8h as 18h."
+          },
+          "classification": {
+            "type": "object",
+            "example": {
+              "messageCategoryId": "f2f5c2a0-1234-4b6f-9c6a-2f4a1d5d1c9a",
+              "categoryName": "Agendamento",
+              "confidence": 0.82,
+              "reason": "Mensagem indica solicitacao de agendamento."
+            }
+          },
+          "quality": {
+            "$ref": "#/components/schemas/RagQualityScoreDto"
+          },
+          "blocked": {
+            "type": "boolean",
+            "example": false
+          }
+        },
+        "required": [
+          "question",
+          "answer",
+          "classification",
+          "quality",
+          "blocked"
+        ]
       },
       "ConversationSummaryDto": {
         "type": "object",
@@ -2141,9 +2745,18 @@
       "ConversationSummaryMetaDto": {
         "type": "object",
         "properties": {
-          "messageCount": { "type": "number", "example": 4 },
-          "inputChars": { "type": "number", "example": 782 },
-          "latencyMs": { "type": "number", "example": 420 }
+          "messageCount": {
+            "type": "number",
+            "example": 4
+          },
+          "inputChars": {
+            "type": "number",
+            "example": 782
+          },
+          "latencyMs": {
+            "type": "number",
+            "example": 420
+          }
         },
         "required": ["messageCount", "inputChars", "latencyMs"]
       },
@@ -2164,9 +2777,17 @@
             "example": "plain",
             "enum": ["plain", "bullet", "crm"]
           },
-          "language": { "type": "string", "example": "pt-BR" },
-          "tenantId": { "type": "string", "example": "clinica_super_med" },
-          "meta": { "$ref": "#/components/schemas/ConversationSummaryMetaDto" }
+          "language": {
+            "type": "string",
+            "example": "pt-BR"
+          },
+          "tenantId": {
+            "type": "string",
+            "example": "clinica_super_med"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ConversationSummaryMetaDto"
+          }
         },
         "required": [
           "summary",
@@ -2205,8 +2826,14 @@
             "type": "string",
             "example": "9b4f2f6d-8a1b-4e77-9c19-9fe6c9e43b2d"
           },
-          "tenantId": { "type": "string", "example": "tenant_a" },
-          "conversationId": { "type": "object", "example": "conv_123" },
+          "tenantId": {
+            "type": "string",
+            "example": "tenant_a"
+          },
+          "conversationId": {
+            "type": "object",
+            "example": "conv_123"
+          },
           "userMessage": {
             "type": "string",
             "example": "Qual o horario de atendimento?"
@@ -2220,20 +2847,36 @@
             "enum": ["RAG", "FALLBACK", "OUT_OF_SCOPE", "GREETING", "SUMMARY"],
             "example": "RAG"
           },
-          "confidenceScore": { "type": "object", "example": 0.82 },
+          "confidenceScore": {
+            "type": "object",
+            "example": 0.82
+          },
           "usedChunkIds": {
             "example": ["1", "2"],
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           },
           "usedChunkScores": {
             "example": [0.92, 0.88],
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           },
-          "model": { "type": "object", "example": "gpt-4o-mini" },
-          "latencyMs": { "type": "object", "example": 932 },
-          "resolvedByHuman": { "type": "boolean", "example": false },
+          "model": {
+            "type": "object",
+            "example": "gpt-4o-mini"
+          },
+          "latencyMs": {
+            "type": "object",
+            "example": 932
+          },
+          "resolvedByHuman": {
+            "type": "boolean",
+            "example": false
+          },
           "resolutionReason": {
             "type": "object",
             "example": "Ajustado por humano."
@@ -2260,7 +2903,9 @@
         "properties": {
           "items": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/AiMessageLogDto" }
+            "items": {
+              "$ref": "#/components/schemas/AiMessageLogDto"
+            }
           },
           "nextCursor": {
             "type": "object",
@@ -2293,13 +2938,34 @@
       "SummaryMetricsDto": {
         "type": "object",
         "properties": {
-          "totalMessages": { "type": "number", "example": 100 },
-          "ragCount": { "type": "number", "example": 70 },
-          "fallbackCount": { "type": "number", "example": 20 },
-          "outOfScopeCount": { "type": "number", "example": 10 },
-          "ragRate": { "type": "number", "example": 70 },
-          "fallbackRate": { "type": "number", "example": 20 },
-          "outOfScopeRate": { "type": "number", "example": 10 }
+          "totalMessages": {
+            "type": "number",
+            "example": 100
+          },
+          "ragCount": {
+            "type": "number",
+            "example": 70
+          },
+          "fallbackCount": {
+            "type": "number",
+            "example": 20
+          },
+          "outOfScopeCount": {
+            "type": "number",
+            "example": 10
+          },
+          "ragRate": {
+            "type": "number",
+            "example": 70
+          },
+          "fallbackRate": {
+            "type": "number",
+            "example": 20
+          },
+          "outOfScopeRate": {
+            "type": "number",
+            "example": 10
+          }
         },
         "required": [
           "totalMessages",
@@ -2314,18 +2980,36 @@
       "TimeSeriesMetricsDto": {
         "type": "object",
         "properties": {
-          "date": { "type": "string", "example": "2025-01-22" },
-          "rag": { "type": "number", "example": 12 },
-          "fallback": { "type": "number", "example": 3 },
-          "outOfScope": { "type": "number", "example": 1 }
+          "date": {
+            "type": "string",
+            "example": "2025-01-22"
+          },
+          "rag": {
+            "type": "number",
+            "example": 12
+          },
+          "fallback": {
+            "type": "number",
+            "example": 3
+          },
+          "outOfScope": {
+            "type": "number",
+            "example": 1
+          }
         },
         "required": ["date", "rag", "fallback", "outOfScope"]
       },
       "TopTenantsByFallbackDto": {
         "type": "object",
         "properties": {
-          "tenantId": { "type": "string", "example": "tenant_a" },
-          "fallbackCount": { "type": "number", "example": 12 }
+          "tenantId": {
+            "type": "string",
+            "example": "tenant_a"
+          },
+          "fallbackCount": {
+            "type": "number",
+            "example": 12
+          }
         },
         "required": ["tenantId", "fallbackCount"]
       },
@@ -2341,51 +3025,93 @@
             "enum": ["RAG", "FALLBACK", "OUT_OF_SCOPE", "GREETING", "SUMMARY"],
             "example": "FALLBACK"
           },
-          "count": { "type": "number", "example": 5 }
+          "count": {
+            "type": "number",
+            "example": 5
+          }
         },
         "required": ["userMessage", "responseType", "count"]
       },
       "SuggestExamplesStatsDto": {
         "type": "object",
         "properties": {
-          "totalCandidates": { "type": "number", "example": 12 },
-          "kept": { "type": "number", "example": 5 }
+          "totalCandidates": {
+            "type": "number",
+            "example": 12
+          },
+          "kept": {
+            "type": "number",
+            "example": 5
+          }
         },
         "required": ["totalCandidates", "kept"]
       },
       "SuggestExamplesItemDto": {
         "type": "object",
         "properties": {
-          "intent": { "type": "string", "example": "institucional" },
+          "intent": {
+            "type": "string",
+            "example": "institucional"
+          },
           "examples": {
             "example": ["Qual o horario de atendimento?"],
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           },
-          "stats": { "$ref": "#/components/schemas/SuggestExamplesStatsDto" }
+          "stats": {
+            "$ref": "#/components/schemas/SuggestExamplesStatsDto"
+          }
         },
         "required": ["intent", "examples", "stats"]
       },
       "SuggestExamplesExcludedDto": {
         "type": "object",
         "properties": {
-          "outOfScope": { "type": "number", "example": 3 },
-          "tooShort": { "type": "number", "example": 10 },
-          "duplicates": { "type": "number", "example": 5 },
-          "lowConfidence": { "type": "number", "example": 2 }
+          "outOfScope": {
+            "type": "number",
+            "example": 3
+          },
+          "tooShort": {
+            "type": "number",
+            "example": 10
+          },
+          "duplicates": {
+            "type": "number",
+            "example": 5
+          },
+          "lowConfidence": {
+            "type": "number",
+            "example": 2
+          }
         },
         "required": ["outOfScope", "tooShort", "duplicates", "lowConfidence"]
       },
       "SuggestExamplesResponseDto": {
         "type": "object",
         "properties": {
-          "tenantId": { "type": "string", "example": "tenant_a" },
-          "from": { "type": "string", "example": "2025-01-01T00:00:00.000Z" },
-          "to": { "type": "string", "example": "2025-01-31T23:59:59.999Z" },
-          "perIntent": { "type": "number", "example": 10 },
+          "tenantId": {
+            "type": "string",
+            "example": "tenant_a"
+          },
+          "from": {
+            "type": "string",
+            "example": "2025-01-01T00:00:00.000Z"
+          },
+          "to": {
+            "type": "string",
+            "example": "2025-01-31T23:59:59.999Z"
+          },
+          "perIntent": {
+            "type": "number",
+            "example": 10
+          },
           "suggestions": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/SuggestExamplesItemDto" }
+            "items": {
+              "$ref": "#/components/schemas/SuggestExamplesItemDto"
+            }
           },
           "excluded": {
             "$ref": "#/components/schemas/SuggestExamplesExcludedDto"
@@ -2405,7 +3131,9 @@
         "properties": {
           "intents": {
             "type": "object",
-            "example": { "institucional": ["Qual o horario de atendimento?"] }
+            "example": {
+              "institucional": ["Qual o horario de atendimento?"]
+            }
           }
         },
         "required": ["intents"]
@@ -2413,7 +3141,10 @@
       "ApplyIntentionExamplesRequestDto": {
         "type": "object",
         "properties": {
-          "tenantId": { "type": "string", "example": "tenant_a" },
+          "tenantId": {
+            "type": "string",
+            "example": "tenant_a"
+          },
           "mergeStrategy": {
             "type": "string",
             "enum": ["append_unique"],
@@ -2428,11 +3159,19 @@
       "IntentionExamplesConfigDto": {
         "type": "object",
         "properties": {
-          "version": { "type": "number", "example": 1 },
-          "threshold": { "type": "number", "example": 0.78 },
+          "version": {
+            "type": "number",
+            "example": 1
+          },
+          "threshold": {
+            "type": "number",
+            "example": 0.78
+          },
           "intents": {
             "type": "object",
-            "example": { "institucional": ["Qual o horario de atendimento?"] }
+            "example": {
+              "institucional": ["Qual o horario de atendimento?"]
+            }
           }
         },
         "required": ["version", "threshold", "intents"]
@@ -2440,8 +3179,14 @@
       "ApplyIntentionExamplesResponseDto": {
         "type": "object",
         "properties": {
-          "tenantId": { "type": "string", "example": "tenant_a" },
-          "added": { "type": "number", "example": 3 },
+          "tenantId": {
+            "type": "string",
+            "example": "tenant_a"
+          },
+          "added": {
+            "type": "number",
+            "example": 3
+          },
           "config": {
             "$ref": "#/components/schemas/IntentionExamplesConfigDto"
           }
@@ -2469,8 +3214,14 @@
             "type": "string",
             "example": "Voce e um assistente de atendimento."
           },
-          "isActive": { "type": "boolean", "example": true },
-          "isCustomized": { "type": "boolean", "example": false },
+          "isActive": {
+            "type": "boolean",
+            "example": true
+          },
+          "isCustomized": {
+            "type": "boolean",
+            "example": false
+          },
           "sourceTemplateTenantType": {
             "type": "string",
             "enum": ["GENERIC", "LAW_FIRM", "CLINIC"],
@@ -2488,7 +3239,9 @@
         "properties": {
           "items": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/PromptPackDto" }
+            "items": {
+              "$ref": "#/components/schemas/PromptPackDto"
+            }
           }
         },
         "required": ["items"]
@@ -2500,8 +3253,14 @@
             "type": "string",
             "example": "Novo conteudo do prompt."
           },
-          "isActive": { "type": "boolean", "example": true },
-          "isCustomized": { "type": "boolean", "example": true }
+          "isActive": {
+            "type": "boolean",
+            "example": true
+          },
+          "isCustomized": {
+            "type": "boolean",
+            "example": true
+          }
         },
         "required": ["content"]
       },
@@ -2536,7 +3295,10 @@
             "type": "string",
             "example": "Voce e um assistente de atendimento."
           },
-          "isActive": { "type": "boolean", "example": true },
+          "isActive": {
+            "type": "boolean",
+            "example": true
+          },
           "tenantType": {
             "type": "string",
             "enum": ["GENERIC", "LAW_FIRM", "CLINIC"],
@@ -2554,7 +3316,9 @@
         "properties": {
           "items": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/PromptPackTemplateDto" }
+            "items": {
+              "$ref": "#/components/schemas/PromptPackTemplateDto"
+            }
           }
         },
         "required": ["items"]
@@ -2566,7 +3330,10 @@
             "type": "string",
             "example": "Novo template para este tenantType."
           },
-          "isActive": { "type": "boolean", "example": true }
+          "isActive": {
+            "type": "boolean",
+            "example": true
+          }
         },
         "required": ["content"]
       },
@@ -2667,7 +3434,10 @@
             "type": "string",
             "example": "b4bff1c7-9f3c-4e18-9e0d-6b2c0e8e1b32"
           },
-          "name": { "type": "string", "example": "Clinica Super Med" },
+          "name": {
+            "type": "string",
+            "example": "Clinica Super Med"
+          },
           "tenantType": {
             "type": "string",
             "enum": ["GENERIC", "LAW_FIRM", "CLINIC"],
@@ -2684,6 +3454,15 @@
         },
         "required": ["id", "name", "tenantType", "createdAt", "updatedAt"]
       },
+      "CreateTenantResponseDto": {
+        "type": "object",
+        "properties": {
+          "tenant": {
+            "$ref": "#/components/schemas/TenantDto"
+          }
+        },
+        "required": ["tenant"]
+      },
       "CategoryDto": {
         "type": "object",
         "properties": {
@@ -2695,8 +3474,14 @@
             "type": "string",
             "example": "b4bff1c7-9f3c-4e18-9e0d-6b2c0e8e1b32"
           },
-          "key": { "type": "object", "example": "SCHEDULING" },
-          "name": { "type": "string", "example": "Agendamento" },
+          "key": {
+            "type": "object",
+            "example": "SCHEDULING"
+          },
+          "name": {
+            "type": "string",
+            "example": "Agendamento"
+          },
           "description": {
             "type": "string",
             "example": "Solicitacoes de agendamento ou remarcacao."
@@ -2704,12 +3489,26 @@
           "examples": {
             "example": ["Quero marcar consulta"],
             "type": "array",
-            "items": { "type": "array" }
+            "items": {
+              "type": "array"
+            }
           },
-          "color": { "type": "string", "example": "#3B82F6" },
-          "sortOrder": { "type": "number", "example": 10 },
-          "isActive": { "type": "boolean", "example": true },
-          "isSystem": { "type": "boolean", "example": false },
+          "color": {
+            "type": "string",
+            "example": "#3B82F6"
+          },
+          "sortOrder": {
+            "type": "number",
+            "example": 10
+          },
+          "isActive": {
+            "type": "boolean",
+            "example": true
+          },
+          "isSystem": {
+            "type": "boolean",
+            "example": false
+          },
           "createdAt": {
             "type": "string",
             "example": "2025-01-22T10:30:00.000Z"
@@ -2733,27 +3532,14 @@
           "updatedAt"
         ]
       },
-      "CreateTenantResponseDto": {
-        "type": "object",
-        "properties": {
-          "tenant": { "$ref": "#/components/schemas/TenantDto" },
-          "messageCategories": {
-            "type": "array",
-            "items": { "$ref": "#/components/schemas/CategoryDto" }
-          },
-          "promptPacks": {
-            "type": "array",
-            "items": { "$ref": "#/components/schemas/PromptPackDto" }
-          }
-        },
-        "required": ["tenant", "messageCategories", "promptPacks"]
-      },
       "CategoriesResponseDto": {
         "type": "object",
         "properties": {
           "items": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/CategoryDto" }
+            "items": {
+              "$ref": "#/components/schemas/CategoryDto"
+            }
           }
         },
         "required": ["items"]
@@ -2766,7 +3552,10 @@
             "example": "SCHEDULING",
             "description": "Chave unica da categoria (opcional)."
           },
-          "name": { "type": "string", "example": "Agendamento" },
+          "name": {
+            "type": "string",
+            "example": "Agendamento"
+          },
           "description": {
             "type": "string",
             "example": "Solicitacoes de agendamento, remarcacao ou cancelamento."
@@ -2777,10 +3566,18 @@
               "Preciso remarcar meu horario"
             ],
             "type": "array",
-            "items": { "type": "array" }
+            "items": {
+              "type": "array"
+            }
           },
-          "color": { "type": "string", "example": "#3B82F6" },
-          "sortOrder": { "type": "number", "example": 10 },
+          "color": {
+            "type": "string",
+            "example": "#3B82F6"
+          },
+          "sortOrder": {
+            "type": "number",
+            "example": 10
+          },
           "isActive": {
             "type": "boolean",
             "example": true,
@@ -2792,7 +3589,10 @@
       "UpdateCategoryDto": {
         "type": "object",
         "properties": {
-          "name": { "type": "string", "example": "Agendamento" },
+          "name": {
+            "type": "string",
+            "example": "Agendamento"
+          },
           "description": {
             "type": "string",
             "example": "Solicitacoes de agendamento, remarcacao ou cancelamento."
@@ -2803,11 +3603,22 @@
               "Preciso remarcar meu horario"
             ],
             "type": "array",
-            "items": { "type": "array" }
+            "items": {
+              "type": "array"
+            }
           },
-          "color": { "type": "string", "example": "#3B82F6" },
-          "sortOrder": { "type": "number", "example": 10 },
-          "isActive": { "type": "boolean", "example": false }
+          "color": {
+            "type": "string",
+            "example": "#3B82F6"
+          },
+          "sortOrder": {
+            "type": "number",
+            "example": 10
+          },
+          "isActive": {
+            "type": "boolean",
+            "example": false
+          }
         }
       },
       "ClassifyMessageDto": {
@@ -2832,13 +3643,22 @@
             "type": "string",
             "example": "f2f5c2a0-1234-4b6f-9c6a-2f4a1d5d1c9a"
           },
-          "categoryName": { "type": "string", "example": "Agendamento" },
-          "confidence": { "type": "number", "example": 0.82 },
+          "categoryName": {
+            "type": "string",
+            "example": "Agendamento"
+          },
+          "confidence": {
+            "type": "number",
+            "example": 0.82
+          },
           "reason": {
             "type": "string",
             "example": "Mensagem indica solicitação de agendamento."
           },
-          "needsHumanReview": { "type": "boolean", "example": false }
+          "needsHumanReview": {
+            "type": "boolean",
+            "example": false
+          }
         },
         "required": [
           "messageCategoryId",
@@ -2850,7 +3670,12 @@
       },
       "ProcessWhatsappEventDto": {
         "type": "object",
-        "properties": { "eventId": { "type": "string", "example": "evt_123" } },
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "example": "evt_123"
+          }
+        },
         "required": ["eventId"]
       },
       "ProcessWhatsappEventResponseDto": {
@@ -2861,15 +3686,24 @@
             "example": "processed",
             "enum": ["processed", "already_processed"]
           },
-          "eventId": { "type": "string", "example": "evt_123" }
+          "eventId": {
+            "type": "string",
+            "example": "evt_123"
+          }
         },
         "required": ["status", "eventId"]
       },
-      "Object": { "type": "object", "properties": {} },
+      "Object": {
+        "type": "object",
+        "properties": {}
+      },
       "MessageTextDto": {
         "type": "object",
         "properties": {
-          "body": { "type": "string", "example": "Oi! Gostaria de agendar." }
+          "body": {
+            "type": "string",
+            "example": "Oi! Gostaria de agendar."
+          }
         },
         "required": ["body"]
       },
@@ -2899,21 +3733,35 @@
             ],
             "example": "image"
           },
-          "filename": { "type": "string", "example": "foto.jpg" },
-          "mimeType": { "type": "string", "example": "image/jpeg" },
-          "download": { "$ref": "#/components/schemas/MessageMediaDownloadDto" }
+          "filename": {
+            "type": "string",
+            "example": "foto.jpg"
+          },
+          "mimeType": {
+            "type": "string",
+            "example": "image/jpeg"
+          },
+          "download": {
+            "$ref": "#/components/schemas/MessageMediaDownloadDto"
+          }
         },
         "required": ["kind"]
       },
       "MessageDeliveryErrorDto": {
         "type": "object",
         "properties": {
-          "code": { "type": "string", "example": "provider_error" },
+          "code": {
+            "type": "string",
+            "example": "provider_error"
+          },
           "message": {
             "type": "string",
             "example": "Falha ao enviar mensagem."
           },
-          "ts": { "type": "string", "example": "2025-01-22T10:31:00.000Z" }
+          "ts": {
+            "type": "string",
+            "example": "2025-01-22T10:31:00.000Z"
+          }
         }
       },
       "MessageDeliveryDto": {
@@ -2928,7 +3776,10 @@
             "type": "string",
             "example": "2025-01-22T10:31:00.000Z"
           },
-          "providerStatus": { "type": "string", "example": "SENT" },
+          "providerStatus": {
+            "type": "string",
+            "example": "SENT"
+          },
           "lastError": {
             "$ref": "#/components/schemas/MessageDeliveryErrorDto"
           }
@@ -2943,17 +3794,32 @@
             "enum": ["contact", "agent", "system"],
             "example": "contact"
           },
-          "waId": { "type": "string", "example": "5511999999999" },
-          "userId": { "type": "string", "example": "user_123" },
-          "displayName": { "type": "string", "example": "Maria" }
+          "waId": {
+            "type": "string",
+            "example": "5511999999999"
+          },
+          "userId": {
+            "type": "string",
+            "example": "user_123"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Maria"
+          }
         },
         "required": ["type"]
       },
       "MessageToDto": {
         "type": "object",
         "properties": {
-          "waId": { "type": "string", "example": "5511999999999" },
-          "phoneNumberId": { "type": "string", "example": "phone_number_id" }
+          "waId": {
+            "type": "string",
+            "example": "5511999999999"
+          },
+          "phoneNumberId": {
+            "type": "string",
+            "example": "phone_number_id"
+          }
         }
       },
       "MessageListItemDto": {
@@ -2963,7 +3829,10 @@
             "type": "string",
             "example": "3f9a1a2d-6b88-41a0-8e02-0f2f9c2d7f41"
           },
-          "wabaId": { "type": "string", "example": "waba_123" },
+          "wabaId": {
+            "type": "string",
+            "example": "waba_123"
+          },
           "direction": {
             "type": "string",
             "enum": ["inbound", "outbound", "unknown"],
@@ -2991,11 +3860,21 @@
             "type": "string",
             "example": "2025-01-22T10:30:00.000Z"
           },
-          "text": { "$ref": "#/components/schemas/MessageTextDto" },
-          "media": { "$ref": "#/components/schemas/MessageMediaDto" },
-          "delivery": { "$ref": "#/components/schemas/MessageDeliveryDto" },
-          "from": { "$ref": "#/components/schemas/MessageFromDto" },
-          "to": { "$ref": "#/components/schemas/MessageToDto" }
+          "text": {
+            "$ref": "#/components/schemas/MessageTextDto"
+          },
+          "media": {
+            "$ref": "#/components/schemas/MessageMediaDto"
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/MessageDeliveryDto"
+          },
+          "from": {
+            "$ref": "#/components/schemas/MessageFromDto"
+          },
+          "to": {
+            "$ref": "#/components/schemas/MessageToDto"
+          }
         },
         "required": ["id", "direction", "type", "tsProvider", "from", "to"]
       },
@@ -3004,7 +3883,9 @@
         "properties": {
           "items": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/MessageListItemDto" }
+            "items": {
+              "$ref": "#/components/schemas/MessageListItemDto"
+            }
           },
           "nextBeforeTs": {
             "type": "string",
@@ -3026,16 +3907,24 @@
             "enum": ["text", "template", "media"],
             "example": "text"
           },
-          "text": { "type": "string", "example": "Oi! Gostaria de agendar." },
+          "text": {
+            "type": "string",
+            "example": "Oi! Gostaria de agendar."
+          },
           "templateName": {
             "type": "string",
             "example": "schedule_appointment"
           },
-          "templateLanguage": { "type": "string", "example": "pt_BR" },
+          "templateLanguage": {
+            "type": "string",
+            "example": "pt_BR"
+          },
           "templateVariables": {
             "example": ["Maria", "10/02"],
             "type": "array",
-            "items": { "type": "array" }
+            "items": {
+              "type": "array"
+            }
           },
           "mediaKind": {
             "type": "string",
@@ -3085,30 +3974,128 @@
             "type": "string",
             "example": "2025-01-22T10:30:01.000Z"
           },
-          "sentAt": { "type": "string", "example": "2025-01-22T10:30:01.000Z" }
+          "sentAt": {
+            "type": "string",
+            "example": "2025-01-22T10:30:01.000Z"
+          }
         },
         "required": ["messageId", "status", "createdAt", "updatedAt"]
+      },
+      "ConversationListItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "conv_tenant_a_waba_1_phone_1_5511999999999"
+          },
+          "tenantId": {
+            "type": "string",
+            "example": "tenant_a"
+          },
+          "wabaId": {
+            "type": "string",
+            "example": "waba_1"
+          },
+          "phoneNumberId": {
+            "type": "string",
+            "example": "phone_1"
+          },
+          "waIdCustomer": {
+            "type": "string",
+            "example": "5511999999999"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2025-01-22T10:30:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "example": "2025-01-22T10:35:00.000Z"
+          },
+          "lastMessageAt": {
+            "type": "string",
+            "example": "2025-01-22T10:35:00.000Z"
+          },
+          "lastMessageDirection": {
+            "type": "string",
+            "enum": ["inbound", "outbound", "unknown"],
+            "example": "inbound"
+          },
+          "lastMessageId": {
+            "type": "string",
+            "example": "wamid_123"
+          },
+          "lastMessagePreview": {
+            "type": "string",
+            "example": "Oi, gostaria de agendar."
+          }
+        },
+        "required": [
+          "id",
+          "tenantId",
+          "wabaId",
+          "phoneNumberId",
+          "waIdCustomer",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "ConversationListResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConversationListItemDto"
+            }
+          },
+          "nextBeforeTs": {
+            "type": "string",
+            "example": "2025-01-22T10:30:00.000Z"
+          }
+        },
+        "required": ["items"]
       },
       "KpiRangeDto": {
         "type": "object",
         "properties": {
-          "from": { "type": "string", "example": "2026-02-01T12:00:00.000Z" },
-          "to": { "type": "string", "example": "2026-02-02T12:00:00.000Z" }
+          "from": {
+            "type": "string",
+            "example": "2026-02-01T12:00:00.000Z"
+          },
+          "to": {
+            "type": "string",
+            "example": "2026-02-02T12:00:00.000Z"
+          }
         },
         "required": ["from", "to"]
       },
       "KpiOverviewResponseDto": {
         "type": "object",
         "properties": {
-          "range": { "$ref": "#/components/schemas/KpiRangeDto" },
-          "inboundCount": { "type": "number", "example": 120 },
-          "outboundCount": { "type": "number", "example": 85 },
-          "uniqueContacts": { "type": "number", "example": 42 },
+          "range": {
+            "$ref": "#/components/schemas/KpiRangeDto"
+          },
+          "inboundCount": {
+            "type": "number",
+            "example": 120
+          },
+          "outboundCount": {
+            "type": "number",
+            "example": 85
+          },
+          "uniqueContacts": {
+            "type": "number",
+            "example": 42
+          },
           "lastMessageAt": {
             "type": "object",
             "example": "2026-02-02T11:50:00.000Z"
           },
-          "note": { "type": "string", "example": "ok" }
+          "note": {
+            "type": "string",
+            "example": "ok"
+          }
         },
         "required": [
           "range",
@@ -3121,17 +4108,30 @@
       "KpiInboundVolumeResponseDto": {
         "type": "object",
         "properties": {
-          "range": { "$ref": "#/components/schemas/KpiRangeDto" },
-          "inboundCount": { "type": "number", "example": 120 },
-          "note": { "type": "string", "example": "ok" }
+          "range": {
+            "$ref": "#/components/schemas/KpiRangeDto"
+          },
+          "inboundCount": {
+            "type": "number",
+            "example": 120
+          },
+          "note": {
+            "type": "string",
+            "example": "ok"
+          }
         },
         "required": ["range", "inboundCount", "note"]
       },
       "KpiNeedsReplyResponseDto": {
         "type": "object",
         "properties": {
-          "range": { "$ref": "#/components/schemas/KpiRangeDto" },
-          "needsReplyCount": { "type": "number", "example": 0 },
+          "range": {
+            "$ref": "#/components/schemas/KpiRangeDto"
+          },
+          "needsReplyCount": {
+            "type": "number",
+            "example": 0
+          },
           "note": {
             "type": "string",
             "example": "TODO: depende de conversations para calcular needsReplyCount."
@@ -3142,9 +4142,17 @@
       "KpiOpenChatsResponseDto": {
         "type": "object",
         "properties": {
-          "range": { "$ref": "#/components/schemas/KpiRangeDto" },
-          "openChatsCount": { "type": "number", "example": 12 },
-          "note": { "type": "string", "example": "ok" }
+          "range": {
+            "$ref": "#/components/schemas/KpiRangeDto"
+          },
+          "openChatsCount": {
+            "type": "number",
+            "example": 12
+          },
+          "note": {
+            "type": "string",
+            "example": "ok"
+          }
         },
         "required": ["range", "openChatsCount", "note"]
       }
