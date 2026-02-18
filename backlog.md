@@ -9,4 +9,5 @@
 - Ao criar tenant, retirar retorno das categorias e prompts pack - FEITO
 - Implementar a possibilidade de enviar apenas uma mensagem para o chat (atualemnte só conjunto de mensagens) - FEITO
 - Sugestão de respostas - FEITO
-- Regras operacionais temporárias ou não
+- Regras operacionais - FEITO
+- Implementar auditoria administrativa (log para atualizações de tabelas)
