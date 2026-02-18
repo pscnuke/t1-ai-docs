@@ -70,4 +70,8 @@ where "key" = 'CONVERSATION_SUMMARY';
 
 
 select "tenantId", "key", "content" from "PromptPack" where "tenantId" = 'clinica_orto_exemplo' and "key" = 'INTENTION_RULES';
+
+# consulta a regra operacional (OperationalRule)
+select "id", "tenantId", "name", "description", "isEnabled", "priority", "actionType" from "OperationalRule";
+
 ```
