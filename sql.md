@@ -38,14 +38,21 @@ LIMIT 5;
 select * from "Tenant";
 ```
 
-## Consulta as Categorias de Mensagens
+## Categorias de Mensagens
+
+## Categorias dos templates
 
 ```sql
 # consulta os templates das categorias das mensagens [MessageCategoryTemplate]
 select "tenantType", "key", "name", "createdAt" from "MessageCategoryTemplate" order by "tenantType";
+```
 
+### Categorias do tenant
+
+```sql
 # consulta as categorias das mensagens do tenant [MessageCategory]
-SELECT "tenantId", "key", "name", "createdAt" FROM "MessageCategory";
+SELECT "tenantId", "key", "name", "createdAt" FROM "MessageCategory"
+WHERE "tenantId" = 'cAX0ZWfKhjRuxfCNdrfC';
 ```
 
 ## PromptPack
