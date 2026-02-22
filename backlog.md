@@ -12,6 +12,6 @@
 - Regras operacionais - FEITO
 - Instruções para o RAG (vai junto com a pergunta, contexto, resumo) - FEITO
 - Prirização das respostas (Urgente, Alta, Média, Baixa, ainda não priorizada) - FEITO
-- Implantar conceito de Queue (fila das conversas), grupo de pessoas para quem a conversa se deve ser tratada
+- Implantar conceito de Queue (fila das conversas), grupo de pessoas para quem a conversa se deve ser tratada - FEITO
 
 - Implementar auditoria administrativa (log para atualizações de tabelas)
