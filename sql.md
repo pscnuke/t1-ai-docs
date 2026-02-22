@@ -84,7 +84,7 @@ select "tenantId", "key", "content" from "PromptPack" where "tenantId" = 'clinic
 ## Regras Operacionais
 
 ```sql
-# consulta a regra operacional (OperationalRule)
+# consulta geral a regra operacional [OperationalRule]
 select "id", "tenantId", "name", "description", "isEnabled", "priority", "actionType" from "OperationalRule";
 ```
 
@@ -93,15 +93,17 @@ select "id", "tenantId", "name", "description", "isEnabled", "priority", "action
 ### Filas do Templates
 
 ```sql
-#
-SELECT "id", "tenantType", "key", "name"
-FROM "ConversationQueueTemplate";
+# consulta geral a filas do template [ConversationQueueTemplate]
+SELECT "id", "updatedAt", "tenantType", "key", "name", "isDefault"
+FROM "ConversationQueueTemplate" ORDER BY "tenantType";
 
 ```
 
 ### Filas do tenant
 
 ```sql
-
+# consulta geral a filas do tenant [ConversationQueue]
+SELECT "id", "updatedAt", "tenantId", "key", "name", "isSystem"
+FROM "ConversationQueue" ORDER BY "tenantId";
 
 ```
