@@ -1,10 +1,12 @@
-### Comandos uteis para testar o banco de dados
+# Comandos uteis para testar o banco de dados
 
 ```bash
 # conectar banco
 psql -U rag_user -d rag_db
 
 ```
+
+## Geral
 
 ```sql
 # ver usuários
@@ -46,14 +48,21 @@ select "tenantType", "key", "name", "createdAt" from "MessageCategoryTemplate" o
 SELECT "tenantId", "key", "name", "createdAt" FROM "MessageCategory";
 ```
 
-## Consulta os PromptPack
+## PromptPack
+
+### PromptPack do templates
 
 ```sql
 # consulta aos templates de Prompt Packs [PromptPackTemplate]
 select "tenantType", "key", "createdAt", "updatedAt" from "PromptPackTemplate" order by "tenantType";
+select "tenantType", "key", "createdAt", "updatedAt" from "PromptPackTemplate" where "tenantType" = 'CLINIC';
 select "tenantType", "key", "createdAt", "updatedAt" from "PromptPackTemplate" where "tenantType" = 'CLINIC' and "key" = 'INTENTION_RULES';
 select "tenantType", "key", "content" from "PromptPackTemplate" where "tenantType" = 'CLINIC' and "key" = 'INTENTION_RULES';
+```
 
+### PromptPack de tenant
+
+```sql
 # consulta aos Prompt Packs do tenant [PromptPack]
 select "tenantId", "key" from "PromptPack";
 select "tenantId", "key", "content" from "PromptPack" where "tenantId" = 'clinica_orto_exemplo' and "key" = 'FALLBACK';
@@ -67,11 +76,32 @@ select
 from "PromptPack"
 where "key" = 'CONVERSATION_SUMMARY';
 
-
-
 select "tenantId", "key", "content" from "PromptPack" where "tenantId" = 'clinica_orto_exemplo' and "key" = 'INTENTION_RULES';
 
+
+```
+
+## Regras Operacionais
+
+```sql
 # consulta a regra operacional (OperationalRule)
 select "id", "tenantId", "name", "description", "isEnabled", "priority", "actionType" from "OperationalRule";
+```
+
+## Filas (Queue)
+
+### Filas do Templates
+
+```sql
+#
+SELECT "id", "tenantType", "key", "name"
+FROM "ConversationQueueTemplate";
+
+```
+
+### Filas do tenant
+
+```sql
+
 
 ```
