@@ -40,7 +40,7 @@ select * from "Tenant";
 
 ## Categorias de Mensagens
 
-## Categorias dos templates
+### Categorias dos templates
 
 ```sql
 # consulta os templates das categorias das mensagens [MessageCategoryTemplate]
