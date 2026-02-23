@@ -1,6 +1,12 @@
 # Comandos uteis para testar o banco de dados
 
 ```bash
+# subir banco
+brew services start postgresql@17
+
+# parar banco
+brew services stop postgresql@17
+
 # conectar banco
 psql -U rag_user -d rag_db
 
