@@ -27,6 +27,10 @@ psql -U rag_user -d rag_db
 # listar extensões
 \dx
 
+# limpar tela
+\! clear
+
+
 # ver usuário corrente
 SELECT current_user, session_user;
 
@@ -57,7 +61,7 @@ select "tenantType", "key", "name", "createdAt" from "MessageCategoryTemplate" o
 
 ```sql
 # consulta as categorias do tenant [MessageCategory]
-SELECT "key", "name", "isActive", "createdAt" FROM "MessageCategory"
+SELECT "key", "name", "isActive", "createdAt", "updatedAt" FROM "MessageCategory"
 WHERE "tenantId" = 'cAX0ZWfKhjRuxfCNdrfC';
 
 # consulta as categorias do tenant com descrição e exemplos
@@ -115,7 +119,7 @@ FROM "ConversationQueueTemplate" ORDER BY "tenantType";
 
 ```sql
 # consulta geral a filas do tenant [ConversationQueue]
-SELECT "id", "updatedAt", "tenantId", "key", "name", "isSystem"
+SELECT "id", "createdAt", "updatedAt", "tenantId", "key", "name", "isSystem"
 FROM "ConversationQueue" ORDER BY "tenantId";
 
 ```
