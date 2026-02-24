@@ -57,7 +57,7 @@ select "tenantType", "key", "name", "createdAt" from "MessageCategoryTemplate" o
 
 ```sql
 # consulta as categorias do tenant [MessageCategory]
-SELECT "key", "name", "createdAt" FROM "MessageCategory"
+SELECT "key", "name", "isActive", "createdAt" FROM "MessageCategory"
 WHERE "tenantId" = 'cAX0ZWfKhjRuxfCNdrfC';
 
 # consulta as categorias do tenant com descrição e exemplos
