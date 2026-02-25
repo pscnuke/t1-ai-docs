@@ -77,6 +77,8 @@ WHERE "tenantId" = 'cAX0ZWfKhjRuxfCNdrfC';
 # consulta aos templates de Prompt Packs [PromptPackTemplate]
 select "tenantType", "key", "createdAt", "updatedAt" from "PromptPackTemplate" order by "tenantType";
 select "tenantType", "key", "createdAt", "updatedAt" from "PromptPackTemplate" where "tenantType" = 'CLINIC';
+select "key", "content" from "PromptPackTemplate" where "tenantType" = 'CLINIC';
+
 select "tenantType", "key", "createdAt", "updatedAt" from "PromptPackTemplate" where "tenantType" = 'CLINIC' and "key" = 'INTENTION_RULES';
 select "tenantType", "key", "content" from "PromptPackTemplate" where "tenantType" = 'CLINIC' and "key" = 'INTENTION_RULES';
 ```
@@ -87,12 +89,14 @@ select "tenantType", "key", "content" from "PromptPackTemplate" where "tenantTyp
 # consulta aos Prompt Packs do tenant [PromptPack]
 select "tenantId", "key" from "PromptPack";
 
-select "tenantId", "key", "content" from "PromptPack" where "tenantId" = 'clinica_orto_exemplo' and "key" = 'FALLBACK';
+select "tenantId", "key", "content" from "PromptPack" where "tenantId" = 'cAX0ZWfKhjRuxfCNdrfC' and "key" = 'FALLBACK';
+
+select "key", "content" from "PromptPack" where "tenantId" = 'cAX0ZWfKhjRuxfCNdrfC' and "key" = 'SYSTEM';
 
 select "id", "tenantId", "key", "content", "createdAt","updatedAt"
 from "PromptPack" where "key" = 'CONVERSATION_SUMMARY';
 
-select "tenantId", "key", "content" from "PromptPack" where "tenantId" = 'clinica_orto_exemplo' and "key" = 'INTENTION_RULES';
+select "tenantId", "key", "content" from "PromptPack" where "tenantId" = 'cAX0ZWfKhjRuxfCNdrfC' and "key" = 'INTENTION_RULES';
 
 
 ```
