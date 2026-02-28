@@ -91,6 +91,8 @@ select "tenantId", "key" from "PromptPack";
 
 select "tenantId", "key", "content" from "PromptPack" where "tenantId" = 'cAX0ZWfKhjRuxfCNdrfC' and "key" = 'FALLBACK';
 
+select "tenantId", "key", "content" from "PromptPack" where "tenantId" = 'cAX0ZWfKhjRuxfCNdrfC' and "key" = 'GREETINGS';
+
 select "key", "content" from "PromptPack" where "tenantId" = 'cAX0ZWfKhjRuxfCNdrfC' and "key" = 'SYSTEM';
 
 select "id", "tenantId", "key", "content", "createdAt","updatedAt"
