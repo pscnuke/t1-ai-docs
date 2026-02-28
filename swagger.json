@@ -159,7 +159,7 @@
     },
     "/ai/chat": {
       "post": {
-        "description": "Executa o fluxo principal de chat de IA no contexto do tenant, incluindo validação de payload, guardrails de segurança/compliance, classificação da mensagem, retrieval híbrido e geração final com avaliação de qualidade. Este endpoint aceita dois formatos de entrada no body: `messages[]` (conversa estruturada completa) ou `message` (mensagem simples de um único turno). Ambos são opcionais no schema, porém a requisição é inválida se nenhum deles for enviado. Regra de precedência: quando `messages[]` e `message` forem enviados ao mesmo tempo, o backend sempre prioriza `messages[]` e ignora `message`. Em `messages[]`, cada item segue o contrato de /ai/conversations/summary: `id`, `role` (`customer`, `agent`, `assistant`), `text`, `createdAt` (ISO) e `author` (`author.id` obrigatório, `author.name` opcional). O campo `summary` é opcional e funciona como contexto transitório: não é persistido no banco, é normalizado (`trim`) e truncado internamente para até 2000 caracteres. Esse resumo é incorporado ao prompt em bloco delimitado como conteúdo do usuário (anti-injection), nunca como instrução de sistema. No retrieval, o resumo é usado de forma controlada: apenas para perguntas curtas ou anafóricas e limitado a 500 caracteres para compor a busca semântica. Além disso, o tamanho do `summary` reduz o orçamento disponível para o transcript no prompt, priorizando o turno atual e mensagens recentes dentro do limite total de contexto. O campo `conversationId` permanece opcional e serve para rastreabilidade operacional em observabilidade.",
+        "description": "Executa o fluxo principal de chat de IA no contexto do tenant, incluindo validação de payload, guardrails de segurança/compliance, classificação da mensagem, classificação de fila operacional (queue routing), retrieval híbrido e geração final com avaliação de qualidade. Este endpoint aceita dois formatos de entrada no body: `messages[]` (conversa estruturada completa) ou `message` (mensagem simples de um único turno). Ambos são opcionais no schema, porém a requisição é inválida se nenhum deles for enviado. Regra de precedência: quando `messages[]` e `message` forem enviados ao mesmo tempo, o backend sempre prioriza `messages[]` e ignora `message`. Em `messages[]`, cada item segue o contrato de /ai/conversations/summary: `id`, `role` (`customer`, `agent`, `assistant`), `text`, `createdAt` (ISO) e `author` (`author.id` obrigatório, `author.name` opcional). O campo `summary` é opcional e funciona como contexto transitório: não é persistido no banco, é normalizado (`trim`) e truncado internamente para até 2000 caracteres. O campo opcional `ragInstructions` é uma diretiva temporária (runtime-only): quando aprovado pelo guard de segurança, é injetado no prompt em bloco system-like com restrições explícitas e também usado como hint controlado de retrieval. O texto completo de `ragInstructions` não é persistido no banco; apenas metadados de auditoria podem ser gravados no AiMessageLog (`ragInstructionsApplied`, `ragInstructionsPreview`, `ragInstructionsRejectReason`). Se `ragInstructions` contiver sinais de injection/jailbreak/solicitação de segredos, o backend ignora apenas esse campo e continua o fluxo normal do chat. No retrieval, `summary` e `ragInstructions` são usados de forma limitada para evitar ruído e preservar foco na pergunta atual. O campo `conversationId` permanece opcional e serve para rastreabilidade operacional em observabilidade. Em `meta`, o campo `fromPhone` identifica o remetente, enquanto `inboundIdentity` representa o canal de entrada do tenant (número legado, JID ou LID) por onde a mensagem chegou; nesta versão, `inboundIdentity` é avaliado somente por regras operacionais. A resposta inclui `responsePriority`, que representa a criticidade operacional da resposta final (enum: URGENT, HIGH, MEDIUM, LOW, UNPRIORITIZED), e `queueKey`, que representa a fila operacional classificada para roteamento da conversa.",
         "operationId": "AiChatController_chat",
         "parameters": [
           {
@@ -172,64 +172,85 @@
         ],
         "requestBody": {
           "required": true,
-          "description": "Payload do chat de IA aceitando conversa estruturada (`messages[]`) ou mensagem simples (`message`). Pelo menos um dos dois campos deve ser enviado. Se ambos forem enviados, `messages[]` terá prioridade e `message` será ignorado. `summary`, `conversationId` e `meta` são opcionais. O `summary` é contexto de memória da conversa atual: não é persistido, passa por normalização e truncamento de tamanho, entra no prompt como conteúdo delimitado do usuário e pode apoiar retrieval em perguntas curtas/anafóricas. `conversationId` é usado para rastreabilidade em logs e `meta` permite enviar `fromPhone`, `channel` e `authorId` para regras operacionais por remetente.",
+          "description": "Payload do chat de IA aceitando conversa estruturada (`messages[]`) ou mensagem simples (`message`). Pelo menos um dos dois campos deve ser enviado. Se ambos forem enviados, `messages[]` terá prioridade e `message` será ignorado. `summary`, `ragInstructions`, `conversationId` e `meta` são opcionais. `summary` representa contexto de conversa em memória e não é persistido. `ragInstructions` representa diretiva temporária para esta execução: pode ser rejeitado por guard de segurança quando houver sinais de prompt injection e, quando aceito, participa do prompt final e do hint de retrieval de forma truncada/controlada. O texto completo de `ragInstructions` não é persistido no banco; apenas metadados (`ragInstructionsApplied`, `ragInstructionsPreview`, `ragInstructionsRejectReason`) podem ser registrados no AiMessageLog. `conversationId` é usado para rastreabilidade em logs e `meta` permite enviar `fromPhone` (remetente), `inboundIdentity` (canal de entrada do tenant via número/JID/LID), `channel` e `authorId`. Nesta versão, `inboundIdentity` é usado somente pela avaliação de regras operacionais. A criticidade retornada em `responsePriority` é calculada sobre a resposta final e contexto disponível. A fila retornada em `queueKey` é classificada a partir da pergunta e contexto da conversa para orientar roteamento operacional por grupo responsável.",
           "content": {
             "application/json": {
               "schema": { "$ref": "#/components/schemas/RagChatDto" },
               "examples": {
                 "conversaEstruturada": {
-                  "summary": "Formato recomendado: conversa estruturada completa com 3 papeis + summary opcional + conversationId para observabilidade",
+                  "summary": "Exemplo completo com todos os campos de entrada. Como `messages[]` foi enviado, `message` sera ignorado por precedencia.",
                   "value": {
+                    "message": "Quais sao os horarios de atendimento?",
                     "messages": [
                       {
                         "id": "m1",
                         "role": "customer",
                         "author": {
-                          "id": "wa:+5511999999999",
+                          "id": "wa:+5511988887777",
                           "name": "Paulo"
                         },
-                        "text": "Oi! Voces atendem Unimed?",
-                        "createdAt": "2026-02-12T12:01:10.000Z"
+                        "text": "Oi! Gostaria de agendar uma consulta para ortopedia.",
+                        "createdAt": "2026-02-12T09:00:10.000Z"
                       },
                       {
                         "id": "m2",
                         "role": "agent",
                         "author": { "id": "user_77", "name": "Maria" },
-                        "text": "Bom dia, Paulo. Sim, atendemos Unimed e Amil.",
-                        "createdAt": "2026-02-12T12:01:40.000Z"
+                        "text": "Bom dia! Claro, para qual medico e qual dia voce prefere?",
+                        "createdAt": "2026-02-12T09:00:35.000Z"
                       },
                       {
                         "id": "m3",
                         "role": "customer",
                         "author": {
-                          "id": "wa:+5511999999999",
+                          "id": "wa:+5511988887777",
                           "name": "Paulo"
                         },
-                        "text": "Perfeito. E qual o horario de atendimento?",
-                        "createdAt": "2026-02-13T09:02:00.000Z"
+                        "text": "Com o Dr Pedro Oliveira. Voces atendem pela Unimed?",
+                        "createdAt": "2026-02-12T09:01:05.000Z"
                       },
                       {
                         "id": "m4",
                         "role": "assistant",
                         "author": { "id": "rag-bot", "name": "Assistente" },
-                        "text": "Atendemos segunda a sexta, das 8h as 18h. Sabados, das 8h as 12h.",
-                        "createdAt": "2026-02-13T09:02:10.000Z"
+                        "text": "Sim, atendemos Unimed. Posso te ajudar com horarios e documentos para o agendamento.",
+                        "createdAt": "2026-02-12T09:01:20.000Z"
+                      },
+                      {
+                        "id": "m5",
+                        "role": "customer",
+                        "author": {
+                          "id": "wa:+5511988887777",
+                          "name": "Paulo"
+                        },
+                        "text": "Perfeito. Quais os proximos horarios disponiveis?",
+                        "createdAt": "2026-02-13T08:15:00.000Z"
                       }
                     ],
-                    "conversationId": "whatsapp:+5511999999999|2026-02-13",
-                    "summary": "Resumo: cliente perguntou sobre convenios aceitos e horario de atendimento; conversa teve respostas de atendente humano e assistente IA."
+                    "conversationId": "whatsapp:+5511988887777|2026-02-13",
+                    "summary": "Resumo: cliente quer agendar ortopedia com Dr Pedro Oliveira; confirmou atendimento por Unimed e pediu proximos horarios.",
+                    "meta": {
+                      "fromPhone": "+5511988887777",
+                      "inboundIdentity": "11111111111",
+                      "channel": "whatsapp",
+                      "authorId": "wa:+5511988887777"
+                    },
+                    "ragInstructions": "Responda em ate 3 frases, tom profissional e finalize pedindo duas opcoes de data/horario."
                   }
                 },
                 "mensagemSimples": {
                   "summary": "Entrada de turno único sem histórico estruturado, usando somente o campo message.",
                   "value": {
-                    "message": "Qual o horario de atendimento hoje?",
-                    "conversationId": "whatsapp:+5511999999999|single-turn",
+                    "message": "Oi! Queria saber os horarios de atendimento hoje.",
+                    "conversationId": "whatsapp:+5511988887777|single-turn",
+                    "summary": "Resumo opcional: cliente iniciou contato e pediu horario de atendimento do dia.",
                     "meta": {
-                      "fromPhone": "+5511999999999",
+                      "fromPhone": "+5511988887777",
+                      "inboundIdentity": "11111111111",
                       "channel": "whatsapp",
-                      "authorId": "wa:+5511999999999"
-                    }
+                      "authorId": "wa:+5511988887777"
+                    },
+                    "ragInstructions": "Responda em tom cordial e objetivo e finalize com convite para agendamento."
                   }
                 },
                 "precedenciaMessages": {
@@ -254,7 +275,8 @@
                         "text": "Sim, atendemos Bradesco Saude e SulAmerica.",
                         "createdAt": "2026-02-14T08:00:20.000Z"
                       }
-                    ]
+                    ],
+                    "ragInstructions": "Use resposta breve; não repetir contexto desnecessário."
                   }
                 }
               }
@@ -263,7 +285,59 @@
         },
         "responses": {
           "201": {
-            "description": "Resposta final do fluxo de chat com classificação da mensagem, score de qualidade e indicador de bloqueio quando guardrails são acionados.",
+            "description": "Resposta final do fluxo de chat com criticidade operacional (`responsePriority`), fila operacional classificada (`queueKey`), classificação da mensagem, score de qualidade e indicador de bloqueio quando guardrails são acionados. `responsePriority` usa os níveis URGENT, HIGH, MEDIUM, LOW e UNPRIORITIZED.",
+            "schema": {
+              "examples": {
+                "respostaComClassificacaoDeCriticidade": {
+                  "summary": "Resposta de fluxo RAG/LLM com criticidade calculada para priorização operacional",
+                  "value": {
+                    "question": "Paciente com dor intensa e febre, o que devo fazer agora?",
+                    "answer": "Para sua segurança, procure atendimento humano imediato para avaliação clínica adequada.",
+                    "responsePriority": "HIGH",
+                    "queueKey": "MEDICAL",
+                    "classification": {
+                      "messageCategoryId": "COMPLIANCE_SENSITIVE",
+                      "categoryName": "Compliance sensível",
+                      "confidence": 0.91,
+                      "reason": "Mensagem sensível com necessidade de encaminhamento seguro.",
+                      "model": "classification_auto"
+                    },
+                    "quality": {
+                      "contextCoverage": 0.81,
+                      "genericPenalty": 0,
+                      "faithfulness": 1,
+                      "finalScore": 0.89
+                    },
+                    "blocked": false,
+                    "ragInstructionsApplied": true
+                  }
+                },
+                "respostaSemClassificacaoDeCriticidadePorLlm": {
+                  "summary": "Resposta direta sem classificação de criticidade por LLM (retorna UNPRIORITIZED)",
+                  "value": {
+                    "question": "Oi",
+                    "answer": "Olá! Como posso ajudar hoje?",
+                    "responsePriority": "UNPRIORITIZED",
+                    "queueKey": "NO_QUEUE",
+                    "classification": {
+                      "messageCategoryId": "GREETING",
+                      "categoryName": "Saudação",
+                      "confidence": 1,
+                      "reason": "greeting_guard",
+                      "model": "greeting_guard"
+                    },
+                    "quality": {
+                      "contextCoverage": 0,
+                      "genericPenalty": 0,
+                      "faithfulness": 0,
+                      "finalScore": 1
+                    },
+                    "blocked": false,
+                    "ragInstructionsApplied": false
+                  }
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/RagChatResponseDto" }
@@ -880,7 +954,7 @@
     },
     "/admin/tenants/{tenantId}/prompt-packs": {
       "get": {
-        "description": "Retorna todos os prompt-packs de override já persistidos para o tenant informado. Este endpoint mostra apenas configurações específicas do tenant (customizações locais), sem alterar dados e sem aplicar templates automaticamente. Use esta rota para auditoria, diagnóstico de conteúdo ativo por chave e validação do que está sobrescrevendo templates do tenantType. Chaves de prompt-pack aceitas atualmente no sistema: SYSTEM, FALLBACK, GREETINGS, INTENTION_RULES, INTENTION_EXAMPLES, CONVERSATION_SUMMARY, REWRITE_SYSTEM, REWRITE_USER.",
+        "description": "Retorna todos os prompt-packs de override já persistidos para o tenant informado. Este endpoint mostra apenas configurações específicas do tenant (customizações locais), sem alterar dados e sem aplicar templates automaticamente. Use esta rota para auditoria, diagnóstico de conteúdo ativo por chave e validação do que está sobrescrevendo templates do tenantType. Chaves de prompt-pack aceitas atualmente no sistema: SYSTEM, FALLBACK, GREETINGS, INTENTION_RULES, INTENTION_EXAMPLES, CONVERSATION_SUMMARY, RESPONSE_PRIORITY, QUEUE_ROUTING, REWRITE_SYSTEM, REWRITE_USER.",
         "operationId": "AdminPromptPacksController_listTenantPromptPacks",
         "parameters": [
           {
@@ -925,7 +999,7 @@
             "name": "key",
             "required": true,
             "in": "path",
-            "description": "Chave do prompt-pack. Chaves de prompt-pack aceitas atualmente no sistema: SYSTEM, FALLBACK, GREETINGS, INTENTION_RULES, INTENTION_EXAMPLES, CONVERSATION_SUMMARY, REWRITE_SYSTEM, REWRITE_USER.",
+            "description": "Chave do prompt-pack. Chaves de prompt-pack aceitas atualmente no sistema: SYSTEM, FALLBACK, GREETINGS, INTENTION_RULES, INTENTION_EXAMPLES, CONVERSATION_SUMMARY, RESPONSE_PRIORITY, QUEUE_ROUTING, REWRITE_SYSTEM, REWRITE_USER.",
             "schema": {
               "enum": [
                 "SYSTEM",
@@ -934,6 +1008,8 @@
                 "INTENTION_RULES",
                 "INTENTION_EXAMPLES",
                 "CONVERSATION_SUMMARY",
+                "RESPONSE_PRIORITY",
+                "QUEUE_ROUTING",
                 "REWRITE_SYSTEM",
                 "REWRITE_USER"
               ],
@@ -1039,7 +1115,7 @@
     },
     "/admin/prompt-pack-templates/{tenantType}": {
       "get": {
-        "description": "Retorna o catálogo de templates de prompt-pack para o tenantType informado, com conteúdo e estado de ativação de cada chave. Esta visão representa o baseline de configuração por tipo de cliente e é usada como referência para criação/sincronização de tenants. Endpoint útil para governança de templates, revisão editorial e validação de consistência entre tipos de tenant. Chaves de prompt-pack aceitas atualmente no sistema: SYSTEM, FALLBACK, GREETINGS, INTENTION_RULES, INTENTION_EXAMPLES, CONVERSATION_SUMMARY, REWRITE_SYSTEM, REWRITE_USER.",
+        "description": "Retorna o catálogo de templates de prompt-pack para o tenantType informado, com conteúdo e estado de ativação de cada chave. Esta visão representa o baseline de configuração por tipo de cliente e é usada como referência para criação/sincronização de tenants. Endpoint útil para governança de templates, revisão editorial e validação de consistência entre tipos de tenant. Chaves de prompt-pack aceitas atualmente no sistema: SYSTEM, FALLBACK, GREETINGS, INTENTION_RULES, INTENTION_EXAMPLES, CONVERSATION_SUMMARY, RESPONSE_PRIORITY, QUEUE_ROUTING, REWRITE_SYSTEM, REWRITE_USER.",
         "operationId": "AdminPromptPacksController_listTemplates",
         "parameters": [
           {
@@ -1089,7 +1165,7 @@
             "name": "key",
             "required": true,
             "in": "path",
-            "description": "Chave do prompt-pack. Chaves de prompt-pack aceitas atualmente no sistema: SYSTEM, FALLBACK, GREETINGS, INTENTION_RULES, INTENTION_EXAMPLES, CONVERSATION_SUMMARY, REWRITE_SYSTEM, REWRITE_USER.",
+            "description": "Chave do prompt-pack. Chaves de prompt-pack aceitas atualmente no sistema: SYSTEM, FALLBACK, GREETINGS, INTENTION_RULES, INTENTION_EXAMPLES, CONVERSATION_SUMMARY, RESPONSE_PRIORITY, QUEUE_ROUTING, REWRITE_SYSTEM, REWRITE_USER.",
             "schema": {
               "enum": [
                 "SYSTEM",
@@ -1098,6 +1174,8 @@
                 "INTENTION_RULES",
                 "INTENTION_EXAMPLES",
                 "CONVERSATION_SUMMARY",
+                "RESPONSE_PRIORITY",
+                "QUEUE_ROUTING",
                 "REWRITE_SYSTEM",
                 "REWRITE_USER"
               ],
@@ -1134,7 +1212,7 @@
     },
     "/admin/operational-rules/capabilities": {
       "get": {
-        "description": "Retorna o catálogo oficial de conditions e actions suportados pelo motor de regras operacionais. A origem dessas capacidades é o código da aplicação (constante versionada no backend), e não uma tabela configurável no banco. Em produção, este endpoint expõe para o front exatamente o mesmo conjunto validado pelo serviço de regras durante create/update/evaluation. O banco Postgres armazena somente as instâncias de regras na tabela OperationalRule (conditions/actionPayload de cada regra), enquanto o catálogo de tipos permitidos permanece centralizado e versionado em código para previsibilidade operacional e segurança.",
+        "description": "Retorna o catálogo oficial de conditions e actions suportados pelo motor de regras operacionais. A origem dessas capacidades é o código da aplicação (constante versionada no backend), e não uma tabela configurável no banco. Em produção, este endpoint expõe para o front exatamente o mesmo conjunto validado pelo serviço de regras durante create/update/evaluation. O banco Postgres armazena somente as instâncias de regras na tabela OperationalRule (conditions/actionPayload de cada regra), enquanto o catálogo de tipos permitidos permanece centralizado e versionado em código para previsibilidade operacional e segurança. Para evitar ambiguidade: conditions `SENDER_*` usam `meta.fromPhone` (remetente da mensagem), enquanto conditions `INBOUND_IDENTITY_*` usam `meta.inboundIdentity` (canal de entrada do tenant, como número legado, JID ou LID).",
         "operationId": "AdminOperationalRulesController_capabilities",
         "parameters": [],
         "responses": {
@@ -1194,7 +1272,7 @@
         "tags": ["Admin Operation Rules"]
       },
       "post": {
-        "description": "Cria uma nova regra operacional com conditions estruturadas e action payload validado. Regras criadas por este endpoint têm prioridade de execução sobre o fluxo de RAG no /ai/chat, permitindo aplicação imediata de políticas temporárias/permanentes de atendimento. O endpoint valida tenant, janela de vigência, estrutura de conditions versionada e coerência do action payload.",
+        "description": "Cria uma nova regra operacional com conditions estruturadas e action payload validado. Regras criadas por este endpoint têm prioridade de execução sobre o fluxo de RAG no /ai/chat, permitindo aplicação imediata de políticas temporárias/permanentes de atendimento. O endpoint valida tenant, janela de vigência, estrutura de conditions versionada e coerência do action payload. Em gatilhos de origem, `SENDER_*` avalia `meta.fromPhone` (remetente) e `INBOUND_IDENTITY_*` avalia `meta.inboundIdentity` (canal de entrada do tenant, como número legado, JID ou LID).",
         "operationId": "AdminOperationalRulesController_create",
         "parameters": [],
         "requestBody": {
@@ -1242,11 +1320,11 @@
                     }
                   }
                 },
-                "handoffNumero": {
-                  "summary": "Regra permanente de handoff por número específico",
+                "handoffInboundIdentity": {
+                  "summary": "Regra permanente de handoff por identidade de entrada (JID/LID/número do tenant)",
                   "value": {
                     "tenantId": "clinica_super_med",
-                    "name": "Handoff imediato número 9999",
+                    "name": "Handoff imediato por canal de entrada prioritário",
                     "priority": 5,
                     "conditions": {
                       "version": 1,
@@ -1254,8 +1332,8 @@
                         "op": "AND",
                         "items": [
                           {
-                            "type": "SENDER_EQUALS",
-                            "params": { "phone": "+5511999999999" }
+                            "type": "INBOUND_IDENTITY_EQUALS",
+                            "params": { "identity": "11111111111" }
                           }
                         ]
                       }
@@ -1328,7 +1406,7 @@
     },
     "/admin/operational-rules/natural-language": {
       "post": {
-        "description": "Converte uma instrução textual em conditions/actionPayload estruturados usando IA e valida o resultado com o mesmo motor de regras. Este endpoint NÃO grava no banco: retorna somente um preview para confirmação humana antes de chamar o endpoint de criação persistente.",
+        "description": "Converte uma instrução textual em conditions/actionPayload estruturados usando IA e valida o resultado com o mesmo motor de regras. Este endpoint NÃO grava no banco: retorna somente um preview para confirmação humana antes de chamar o endpoint de criação persistente. Em instruções sobre por qual WhatsApp/JID/LID do tenant a mensagem chegou, o preview tende a usar `INBOUND_IDENTITY_EQUALS`/`INBOUND_IDENTITY_IN` com base no canal de entrada (`meta.inboundIdentity`).",
         "operationId": "AdminOperationalRulesController_createFromNaturalLanguage",
         "parameters": [],
         "requestBody": {
@@ -1344,6 +1422,15 @@
                   "value": {
                     "tenantId": "clinica_super_med",
                     "instruction": "O Dr Pedro Oliveira estará ausente de 01/03/2026 até 15/03/2026. Quando pedirem consulta com ele, encaminhe para o setor responsável.",
+                    "priority": 5,
+                    "isEnabled": true
+                  }
+                },
+                "handoffPorCanalDeEntrada": {
+                  "summary": "Handoff quando mensagem chega pelo WhatsApp específico da clínica",
+                  "value": {
+                    "tenantId": "clinica_super_med",
+                    "instruction": "Se a mensagem chegar pelo telefone 11111111111 da clínica, então transfira para tratamento manual.",
                     "priority": 5,
                     "isEnabled": true
                   }
@@ -1409,7 +1496,7 @@
     },
     "/admin/operational-rules/{id}": {
       "patch": {
-        "description": "Atualiza uma regra operacional existente no tenant informado. Campos efetivamente atualizáveis neste endpoint (9): name, description, isEnabled, priority, startsAt, endsAt, conditions, actionType e actionPayload. O campo tenantId no body é obrigatório apenas para validar escopo multi-tenant e não altera o tenant da regra. Este endpoint não remove regras: para retirar da operação use disable. A atualização invalida cache local de regras do tenant para efeito imediato no próximo ciclo de chat.",
+        "description": "Atualiza uma regra operacional existente no tenant informado. Campos efetivamente atualizáveis neste endpoint (9): name, description, isEnabled, priority, startsAt, endsAt, conditions, actionType e actionPayload. O campo tenantId no body é obrigatório apenas para validar escopo multi-tenant e não altera o tenant da regra. Este endpoint não remove regras: para retirar da operação use disable. A atualização invalida cache local de regras do tenant para efeito imediato no próximo ciclo de chat. Para conditions de origem: `SENDER_*` usa `meta.fromPhone`; `INBOUND_IDENTITY_*` usa `meta.inboundIdentity` (canal de entrada do tenant).",
         "operationId": "AdminOperationalRulesController_update",
         "parameters": [
           {
@@ -1716,7 +1803,7 @@
     },
     "/admin/tenants": {
       "post": {
-        "description": "Cria um novo tenant com isolamento lógico completo, valida tenantId informado (quando presente), persiste o cadastro principal e aplica automaticamente os templates iniciais vinculados ao TenantType para categorias de mensagens e prompt-packs. O endpoint retorna apenas os dados principais do tenant criado. Para consultar categorias e prompt-packs aplicados, use os endpoints administrativos específicos de listagem por tenant.",
+        "description": "Cria um novo tenant com isolamento lógico completo, valida tenantId informado (quando presente), persiste o cadastro principal e aplica automaticamente os templates iniciais vinculados ao TenantType para categorias de mensagens (`MessageCategory`), filas (Queue) de conversa (`ConversationQueue`) e prompt-packs (`PromptPack`). O endpoint retorna apenas os dados principais do tenant criado. Para consultar os catálogos aplicados no tenant, use os endpoints administrativos de listagem por tenant para categorias, filas (Queue) e prompt-packs.",
         "operationId": "AdminTenantsController_createTenant",
         "parameters": [],
         "requestBody": {
@@ -1746,13 +1833,13 @@
             "description": "Erro interno inesperado durante criação do tenant ou aplicação dos templates iniciais."
           }
         },
-        "summary": "Criar tenant e aplicar template de categorias de mensagens e prompt-packs",
+        "summary": "Criar tenant e aplicar templates de categorias, filas (Queue) e prompt-packs",
         "tags": ["Admin Tenants"]
       }
     },
     "/admin/tenants/{tenantId}/messageCategories": {
       "get": {
-        "description": "Retorna todas as categorias de mensagens do tenant (ativas e inativas), incluindo metadados necessários para governança de classificação, ordenação operacional e revisão administrativa do catálogo de categorias.",
+        "description": "Retorna todas as categorias de mensagens do catálogo efetivo do tenant (ativas e inativas), incluindo metadados necessários para governança de classificação, ordenação operacional e revisão administrativa. Esta consulta atua somente em `MessageCategory` do tenant informado e não consulta/edita `MessageCategoryTemplate`.",
         "operationId": "AdminTenantsController_listCategories",
         "parameters": [
           {
@@ -1780,11 +1867,11 @@
             "description": "Erro interno ao buscar categorias do tenant informado."
           }
         },
-        "summary": "Listar categorias de mensagens do tenant (admin)",
+        "summary": "Listar categorias de mensagens do tenant (catálogo do tenant) (admin)",
         "tags": ["Admin Tenants"]
       },
       "post": {
-        "description": "Cria uma categoria customizada para um tenant específico, preservando isolamento por tenant e mantendo a categoria disponível para classificação de mensagens no fluxo operacional.",
+        "description": "Cria uma categoria customizada no catálogo efetivo do tenant (`MessageCategory`), preservando isolamento por tenant e mantendo a categoria disponível para classificação de mensagens no fluxo operacional. Esta operação não altera templates por `TenantType` (`MessageCategoryTemplate`).",
         "operationId": "AdminTenantsController_createCategory",
         "parameters": [
           {
@@ -1821,7 +1908,88 @@
             "description": "Erro interno durante criação da categoria customizada."
           }
         },
-        "summary": "Criar categoria de mensagem customizada (admin)",
+        "summary": "Criar categoria de mensagem customizada do tenant (admin)",
+        "tags": ["Admin Tenants"]
+      }
+    },
+    "/admin/tenants/{tenantId}/queues": {
+      "get": {
+        "description": "Retorna todas as filas (Queue) de conversas do catálogo efetivo do tenant (ativas e inativas), incluindo metadados de roteamento operacional, ordenação e indicadores de fila (Queue) de sistema para governança administrativa. Esta consulta atua somente em `ConversationQueue` do tenant informado e não consulta/edita `ConversationQueueTemplate`.",
+        "operationId": "AdminTenantsController_listQueues",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador do tenant alvo da consulta de filas de conversa.",
+            "schema": { "example": "clinica_super_med", "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista completa das filas (Queue) do tenant, incluindo ativas e inativas, com estado de ativação e metadados de roteamento.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTenantQueuesResponseDto"
+                }
+              }
+            }
+          },
+          "400": { "description": "tenantId inválido." },
+          "404": { "description": "Tenant não encontrado." },
+          "500": {
+            "description": "Erro interno ao buscar filas de conversa do tenant."
+          },
+          "503": {
+            "description": "Catálogo de filas indisponível no ambiente atual. Aplique migrations/seed de filas antes de usar o endpoint."
+          }
+        },
+        "summary": "Listar filas (Queue) de conversas do tenant (catálogo do tenant) (admin)",
+        "tags": ["Admin Tenants"]
+      },
+      "post": {
+        "description": "Cria uma fila (Queue) de conversa customizada no catálogo efetivo do tenant (`ConversationQueue`), preservando isolamento por tenant e disponibilizando o novo destino de roteamento para classificação no fluxo de chat. Esta operação não altera templates por `TenantType` (`ConversationQueueTemplate`). A `key` da fila (Queue) é uma string de domínio gerenciada por tenant (tenant-managed), não um enum global fixo do banco. Portanto, novas filas (Queue) podem ser criadas dinamicamente por endpoint sem necessidade de migration Prisma, desde que respeitem as validações de formato e unicidade no tenant.",
+        "operationId": "AdminTenantsController_createQueue",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador do tenant no qual a fila customizada será criada.",
+            "schema": { "example": "clinica_super_med", "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Dados da nova fila customizada (key, nome, descrição, exemplos e ordenação). A `key` não depende de enum global no schema e pode ser criada livremente no tenant (ex.: `OPERATIONS_SUPPORT`), sem alteração estrutural de banco.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateQueueDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Fila criada com sucesso e pronta para roteamento do chat.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AdminTenantQueueDto" }
+              }
+            }
+          },
+          "400": {
+            "description": "tenantId inválido, tenant inexistente ou payload da fila com dados inválidos."
+          },
+          "404": { "description": "Tenant não encontrado." },
+          "500": {
+            "description": "Erro interno durante criação da fila de conversa."
+          },
+          "503": {
+            "description": "Catálogo de filas indisponível no ambiente atual. Aplique migrations/seed de filas antes de usar o endpoint."
+          }
+        },
+        "summary": "Criar fila (Queue) de conversa customizada do tenant (admin)",
         "tags": ["Admin Tenants"]
       }
     },
@@ -1868,6 +2036,91 @@
         "tags": ["Admin Categorias de Mensagens"]
       }
     },
+    "/admin/queues/{queueId}": {
+      "patch": {
+        "description": "Atualiza os campos editáveis de uma fila (Queue) de conversa existente no catálogo efetivo do tenant (`ConversationQueue`), permitindo ajustes de nome, descrição, exemplos, ordenação e ativação conforme regras de negócio. Este endpoint não altera templates (`ConversationQueueTemplate`), portanto mudanças feitas aqui não atualizam o catálogo base por `TenantType`. Filas (Queue) de sistema protegidas não podem ser desativadas para preservar fallback operacional.",
+        "operationId": "AdminQueuesController_updateQueue",
+        "parameters": [
+          {
+            "name": "queueId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador único da fila de conversa que será atualizada.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Payload com os campos permitidos para atualização da fila de conversa.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateQueueDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Fila atualizada com sucesso com estado final persistido.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AdminQueueDto" }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos no payload ou operação não permitida para fila de sistema."
+          },
+          "404": { "description": "Fila não encontrada." },
+          "500": {
+            "description": "Erro interno durante atualização da fila de conversa."
+          },
+          "503": {
+            "description": "Catálogo de filas indisponível no ambiente atual. Aplique migrations/seed de filas antes de usar o endpoint."
+          }
+        },
+        "summary": "Atualizar fila (Queue) de conversa do tenant (admin)",
+        "tags": ["Admin Filas (Queue) de Conversas"]
+      }
+    },
+    "/admin/tenants/{tenantId}/queues/reapply-template": {
+      "post": {
+        "description": "Reaplica o template de filas (Queue) de conversa do TenantType no tenant informado, cobrindo cenários de tenants legados criados antes da funcionalidade de queue routing. A operação é idempotente: cria somente filas (Queue) ausentes, não duplica `key`/`name`, reforça flags de filas (Queue) de sistema (ex.: `NO_QUEUE`) e retorna o catálogo final completo (ativas e inativas) após a sincronização. No template, o campo `isDefault` indica quais filas (Queue) compõem o catálogo base recomendado do TenantType; ao aplicar no tenant, esse conceito orienta governança de template e é materializado no catálogo final junto com as regras de proteção por `isSystem`. Este endpoint é recomendado quando o seed já foi aplicado no ambiente, porém tenants existentes ainda não receberam as filas (Queue) derivadas de template.",
+        "operationId": "AdminQueuesController_reapplyQueuesTemplate",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador do tenant no qual o template de filas será reaplicado/sincronizado.",
+            "schema": { "example": "clinica_super_med", "type": "string" }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Catálogo final de filas do tenant após reaplicação do template, sem duplicidades, incluindo o estado de governança (`isSystem`) de cada fila para diferenciar filas protegidas de filas customizadas.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminQueuesResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "tenantId inválido ou operação inconsistente com regras de validação do domínio."
+          },
+          "404": { "description": "Tenant não encontrado." },
+          "500": {
+            "description": "Erro interno durante reaplicação do template de filas."
+          },
+          "503": {
+            "description": "Catálogo de filas indisponível no ambiente atual. Aplique migrations/seed de filas antes de usar o endpoint."
+          }
+        },
+        "summary": "Reaplicar template de filas (Queue) no tenant (admin)",
+        "tags": ["Admin Filas (Queue) de Conversas"]
+      }
+    },
     "/messageCategories": {
       "get": {
         "description": "Retorna as categorias ativas do tenant para consumo em fluxos de classificação e interfaces operacionais. Este endpoint é tenant-aware, depende do header x-tenant-id e devolve somente o catálogo aplicável ao tenant informado, evitando qualquer mistura de dados entre clientes.",
@@ -1900,6 +2153,43 @@
         },
         "summary": "Listar categorias de mensagens do tenant",
         "tags": ["Categorias de mensagens"]
+      }
+    },
+    "/queues": {
+      "get": {
+        "description": "Retorna as filas (Queue) ativas de conversa do tenant para consumo em roteamento operacional, painéis de triagem e integrações de atendimento. O endpoint é tenant-aware, depende do header x-tenant-id e garante isolamento estrito entre tenants.",
+        "operationId": "QueuesController_listForTenant",
+        "parameters": [
+          {
+            "name": "x-tenant-id",
+            "required": true,
+            "in": "header",
+            "description": "Identificador do tenant usado para resolver exclusivamente o catálogo de filas do contexto atual.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista somente das filas (Queue) ativas do tenant, com metadados completos para roteamento.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicQueuesResponseDto"
+                }
+              }
+            }
+          },
+          "400": { "description": "tenantId inválido." },
+          "404": { "description": "Tenant não encontrado." },
+          "500": {
+            "description": "Erro interno ao carregar filas ativas do tenant."
+          },
+          "503": {
+            "description": "Catálogo de filas indisponível no ambiente atual. Aplique migrations/seed de filas antes de usar o endpoint."
+          }
+        },
+        "summary": "Listar filas (Queue) ativas do tenant",
+        "tags": ["Filas (Queue) de conversas"]
       }
     },
     "/ai/messages/classify": {
@@ -1945,6 +2235,188 @@
         "tags": ["AI"]
       }
     },
+    "/whatsapp/onboarding/start": {
+      "post": {
+        "operationId": "WhatsappOnboardingController_start",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartWhatsappOnboardingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "URL de autorização gerada com sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartWhatsappOnboardingResponseDto"
+                }
+              }
+            }
+          },
+          "400": { "description": "Payload inválido ou tenant não autorizado." }
+        },
+        "summary": "Inicia OAuth/HES da Meta para conectar WhatsApp Cloud API.",
+        "tags": ["WhatsApp Onboarding"]
+      }
+    },
+    "/whatsapp/onboarding/callback": {
+      "post": {
+        "operationId": "WhatsappOnboardingController_callback",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WhatsappOnboardingCallbackDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Conexão finalizada com sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatsappOnboardingCallbackResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "State/código inválido, expirado ou incompatível."
+          }
+        },
+        "summary": "Finaliza OAuth/HES da Meta e persiste vínculo no tenant.",
+        "tags": ["WhatsApp Onboarding"]
+      }
+    },
+    "/v1/tenants": {
+      "get": {
+        "description": "Retorna os tenants armazenados na collection tenants do Firestore, filtrados pelo ownerId informado via header ou query. O endpoint evita exposição de tenants de outros proprietários e aplica validação do ownerId recebido.",
+        "operationId": "TenantsController_listTenants",
+        "parameters": [
+          {
+            "name": "ownerId",
+            "required": false,
+            "in": "query",
+            "description": "Identificador do usuário proprietário (obrigatório quando o header x-owner-id não estiver presente).",
+            "schema": {}
+          },
+          {
+            "name": "x-owner-id",
+            "in": "header",
+            "description": "Identificador do usuário proprietário dos tenants listados.",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tenants listados com sucesso para o ownerId informado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantsListResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ownerId ausente ou inválido, impedindo a listagem."
+          },
+          "500": {
+            "description": "Erro interno ao consultar a collection tenants no Firestore."
+          }
+        },
+        "summary": "Lista tenants por ownerId.",
+        "tags": ["Tenants"]
+      },
+      "post": {
+        "description": "Cria um documento na collection tenants do Firestore com id, alias e ownerId. O ownerId pode ser informado via header x-owner-id ou no body; quando ambos estiverem presentes, devem coincidir.",
+        "operationId": "TenantsController_createTenant",
+        "parameters": [
+          {
+            "name": "x-owner-id",
+            "in": "header",
+            "description": "Identificador do usuário proprietário do tenant a ser criado.",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Payload com id, alias e ownerId para criação do tenant na collection tenants.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateOwnerTenantDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tenant criado com sucesso.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TenantResponseDto" }
+              }
+            }
+          },
+          "400": {
+            "description": "Payload inválido, ownerId ausente/inválido ou divergência entre header e body."
+          },
+          "500": {
+            "description": "Erro interno ao persistir o tenant na collection tenants."
+          }
+        },
+        "summary": "Cria um novo tenant.",
+        "tags": ["Tenants"]
+      }
+    },
+    "/v1/tenants/{tenantId}": {
+      "get": {
+        "description": "Retorna um tenant específico da collection tenants do Firestore, validando o ownerId informado via header ou query para evitar exposição de tenants de outros proprietários.",
+        "operationId": "TenantsController_getTenantById",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador do documento do tenant na collection tenants.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tenant encontrado e retornado com sucesso.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TenantResponseDto" }
+              }
+            }
+          },
+          "400": {
+            "description": "ownerId ausente ou inválido, impedindo a consulta."
+          },
+          "404": {
+            "description": "Tenant não encontrado para o id informado."
+          },
+          "500": {
+            "description": "Erro interno ao consultar o tenant na collection tenants."
+          }
+        },
+        "summary": "Consulta um tenant pelo id.",
+        "tags": ["Tenants"]
+      }
+    },
     "/internal/webhooks/whatsapp/process": {
       "post": {
         "description": "Processa evento persistido em webhook_events via Cloud Function.",
@@ -1985,6 +2457,65 @@
           "503": { "description": "Falha temporária." }
         },
         "summary": "Processar evento interno do WhatsApp",
+        "tags": ["Internal Webhooks"]
+      }
+    },
+    "/internal/webhooks/whatsapp/reprocess-received": {
+      "post": {
+        "description": "Busca eventos da coleção webhookEvents que ainda estão com status RECEIVED e que foram recebidos há mais de 3 minutos, então reexecuta o fluxo de processamento para cada evento encontrado usando a mesma lógica do endpoint interno de processamento unitário.",
+        "operationId": "InternalWebhookController_reprocessReceivedWhatsappEvent",
+        "parameters": [
+          {
+            "name": "X-Internal-Webhook-Token",
+            "in": "header",
+            "description": "Token interno para chamadas do Cloud Function.",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReprocessReceivedWhatsappEventResponseDto"
+                }
+              }
+            }
+          },
+          "401": { "description": "Token interno inválido." }
+        },
+        "summary": "Reprocessar eventos RECEIVED antigos do WhatsApp",
+        "tags": ["Internal Webhooks"]
+      }
+    },
+    "/internal/webhooks/whatsapp/events/{eventId}": {
+      "get": {
+        "description": "Retorna o evento persistido em webhookEvents, incluindo payload bruto e metadados do processamento.",
+        "operationId": "InternalWebhookController_getWhatsappEvent",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador único do evento no webhookEvents.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "X-Internal-Webhook-Token",
+            "in": "header",
+            "description": "Token interno para chamadas do Cloud Function.",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Evento encontrado e retornado." },
+          "401": { "description": "Token interno inválido." },
+          "404": { "description": "Evento não encontrado." }
+        },
+        "summary": "Consulta evento WhatsApp persistido.",
         "tags": ["Internal Webhooks"]
       }
     },
@@ -2102,6 +2633,9 @@
           "400": {
             "description": "Parâmetros inválidos, tenant ausente/inválido ou payload fora das regras de envio."
           },
+          "409": {
+            "description": "Janela de 24h expirada para envio de mensagem outbound (code: WINDOW_EXPIRED)."
+          },
           "500": {
             "description": "Erro interno inesperado no fluxo de envio outbound de mensagem."
           },
@@ -2110,6 +2644,60 @@
           }
         },
         "summary": "Envia mensagem outbound via WhatsApp.",
+        "tags": ["Messages"]
+      }
+    },
+    "/v1/conversations/{conversationId}/templates/send": {
+      "post": {
+        "description": "Realiza envio outbound de template para uma conversa existente, acionando o provedor WhatsApp e reabrindo a janela de 24h após envio confirmado. Os templates aceitos são temporariamente hardcoded.",
+        "operationId": "MessageController_sendTemplate",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador único da conversa para a qual o template será enviado.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "description": "Identificador do tenant responsável pelo envio outbound do template.",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Payload com o templateName permitido para envio via WhatsApp.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SendTemplateDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Template outbound aceito e enviado para o provedor com sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendMessageResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetros inválidos, tenant ausente/inválido ou template não permitido."
+          },
+          "500": {
+            "description": "Erro interno inesperado no fluxo de envio outbound de template."
+          },
+          "502": {
+            "description": "Falha de integração com o provedor externo durante tentativa de envio."
+          }
+        },
+        "summary": "Envia template outbound via WhatsApp.",
         "tags": ["Messages"]
       }
     },
@@ -2142,6 +2730,24 @@
             "required": false,
             "in": "query",
             "schema": { "example": "urgent", "type": "string" }
+          },
+          {
+            "name": "queue",
+            "required": false,
+            "in": "query",
+            "schema": { "example": "scheduling", "type": "string" }
+          },
+          {
+            "name": "lifecycle",
+            "required": false,
+            "in": "query",
+            "schema": { "example": "in_treatment", "type": "string" }
+          },
+          {
+            "name": "assignedTo",
+            "required": false,
+            "in": "query",
+            "schema": { "example": "reinaldo", "type": "string" }
           },
           {
             "name": "limit",
@@ -2247,6 +2853,117 @@
           }
         },
         "summary": "Consulta detalhes de uma conversa específica.",
+        "tags": ["Conversations"]
+      },
+      "patch": {
+        "description": "Atualiza campos operacionais da conversa na collection conversations do Firestore com base no payload enviado. O tenant é validado via header ou query para garantir isolamento, e apenas campos operacionais informados no body são persistidos.",
+        "operationId": "ConversationController_updateConversation",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador único da conversa na collection conversations do tenant.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "tenantId",
+            "required": false,
+            "in": "query",
+            "description": "Identificador do tenant (obrigatório quando o header x-tenant-id não estiver presente).",
+            "schema": {}
+          },
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "description": "Identificador do tenant responsável pela conversa a ser atualizada.",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Payload com campos operacionais a serem atualizados na conversa.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateConversationDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Conversa atualizada com sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationListItemDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetros inválidos ou payload sem campos atualizáveis."
+          },
+          "404": {
+            "description": "Conversa não encontrada para o tenant informado."
+          },
+          "500": {
+            "description": "Erro interno ao atualizar conversa no Firestore para o tenant informado."
+          }
+        },
+        "summary": "Atualiza campos operacionais de uma conversa.",
+        "tags": ["Conversations"]
+      }
+    },
+    "/v1/conversations/{conversationId}/window": {
+      "get": {
+        "description": "Retorna o status da janela de 24h da conversa, incluindo data de expiração, tempo restante em milissegundos e motivo da última reabertura. O cálculo é derivado do campo conversation.window no Firestore e é tenant-aware.",
+        "operationId": "ConversationController_getConversationWindow",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador único da conversa na collection conversations do tenant.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "tenantId",
+            "required": false,
+            "in": "query",
+            "description": "Identificador do tenant (obrigatório quando o header x-tenant-id não estiver presente).",
+            "schema": {}
+          },
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "description": "Identificador do tenant responsável pela conversa para cálculo da janela de 24h.",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status da janela retornado com sucesso, incluindo expiração e tempo restante.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationWindowResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetros inválidos ou tenant ausente/inválido."
+          },
+          "404": {
+            "description": "Conversa não encontrada para o tenant informado."
+          },
+          "500": {
+            "description": "Erro interno ao consultar janela no Firestore para o tenant informado."
+          }
+        },
+        "summary": "Consulta status da janela de 24h de uma conversa.",
         "tags": ["Conversations"]
       }
     },
@@ -2782,6 +3499,530 @@
         "summary": "KPIs overview \"My Chats\" do período",
         "tags": ["kpis"]
       }
+    },
+    "/v1/stats/overview": {
+      "get": {
+        "operationId": "StatsController_getOverview",
+        "parameters": [
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "description": "Quando type=volume, retorna série diária para gráfico. Sem type retorna overview.",
+            "schema": { "enum": ["volume"], "type": "string" }
+          },
+          {
+            "name": "tenantId",
+            "required": false,
+            "in": "query",
+            "description": "Tenant ID (obrigatório se header não informado).",
+            "schema": { "example": "tenant_123" }
+          },
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "description": "Tenant ID (alternativa ao query param tenantId).",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "KPIs do painel.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsOverviewResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "KPIs operacionais do dashboard",
+        "tags": ["stats"]
+      }
+    },
+    "/v1/stats/by-category": {
+      "get": {
+        "operationId": "StatsController_getByCategory",
+        "parameters": [
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "description": "Quando type=sla retorna faixas de SLA.",
+            "schema": { "enum": ["sla"], "type": "string" }
+          },
+          {
+            "name": "tenantId",
+            "required": false,
+            "in": "query",
+            "description": "Tenant ID (obrigatório se header não informado).",
+            "schema": { "example": "tenant_123" }
+          },
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "description": "Tenant ID (alternativa ao query param tenantId).",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Distribuição por categoria.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StatsByCategoryResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Distribuição do painel por categoria ou por SLA",
+        "tags": ["stats"]
+      }
+    },
+    "/v1/stats/status-by-priority": {
+      "get": {
+        "operationId": "StatsController_getStatusByPriority",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": false,
+            "in": "query",
+            "description": "Tenant ID (obrigatório se header não informado).",
+            "schema": { "example": "tenant_123" }
+          },
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "description": "Tenant ID (alternativa ao query param tenantId).",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status por prioridade para o painel.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StatsPriorityStatusResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Distribuição de conversações por prioridade e status operacional",
+        "tags": ["stats"]
+      }
+    },
+    "/v1/stats/avg-time-by-operator": {
+      "get": {
+        "operationId": "StatsController_getAverageByOperator",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": false,
+            "in": "query",
+            "description": "Tenant ID (obrigatório se header não informado).",
+            "schema": { "example": "tenant_123" }
+          },
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "description": "Tenant ID (alternativa ao query param tenantId).",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tempo médio por operador para o painel.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StatsOperatorAverageResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Tempo médio (min) das conversações closed por operador",
+        "tags": ["stats"]
+      }
+    },
+    "/v1/users": {
+      "get": {
+        "description": "Retorna os usuários armazenados na collection users do Firestore, filtrados exclusivamente pelo tenant informado via header ou query. O endpoint é tenant-aware, valida a existência do tenant no banco relacional e impede qualquer mistura de dados entre clientes.",
+        "operationId": "UsersController_listUsers",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": false,
+            "in": "query",
+            "description": "Identificador do tenant (obrigatório quando o header x-tenant-id não estiver presente).",
+            "schema": {}
+          },
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "description": "Identificador do tenant responsável pelo contexto dos usuários retornados.",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usuários listados com sucesso para o tenant informado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersListResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "tenantId ausente ou inválido, impedindo a listagem no escopo correto."
+          },
+          "404": {
+            "description": "Tenant informado não foi encontrado na base de dados."
+          },
+          "500": {
+            "description": "Erro interno ao consultar a collection users no Firestore."
+          }
+        },
+        "summary": "Lista usuários do tenant.",
+        "tags": ["Users"]
+      },
+      "post": {
+        "description": "Cria um documento na collection users do Firestore com nome e tenantId. O tenant pode ser informado via header x-tenant-id ou no body; quando ambos estiverem presentes, devem coincidir. O serviço valida a existência do tenant no banco relacional antes de persistir o usuário.",
+        "operationId": "UsersController_createUser",
+        "parameters": [
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "description": "Identificador do tenant responsável pelo usuário a ser criado.",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Payload com nome do usuário e tenantId alvo para criação. O tenantId deve seguir o padrão de 2 a 40 caracteres alfanuméricos, hífen ou underscore.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateUserDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Usuário criado com sucesso e identificado pelo id do documento no Firestore.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UserResponseDto" }
+              }
+            }
+          },
+          "400": {
+            "description": "Payload inválido, tenantId ausente/inválido ou divergência entre header e body."
+          },
+          "404": {
+            "description": "Tenant informado não foi encontrado na base de dados."
+          },
+          "500": {
+            "description": "Erro interno ao persistir o usuário na collection users."
+          }
+        },
+        "summary": "Cria um novo usuário para um tenant.",
+        "tags": ["Users"]
+      }
+    },
+    "/v1/users/{userId}": {
+      "get": {
+        "description": "Retorna um usuário específico da collection users do Firestore, validando o tenant informado via header ou query para manter isolamento multi-tenant. Caso o usuário não pertença ao tenant informado, o endpoint responde como não encontrado.",
+        "operationId": "UsersController_getUserById",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador do documento do usuário na collection users.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usuário encontrado e retornado com sucesso para o tenant informado.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UserResponseDto" }
+              }
+            }
+          },
+          "400": {
+            "description": "tenantId ausente ou inválido, impedindo a consulta no escopo correto."
+          },
+          "404": {
+            "description": "Usuário não encontrado para o id informado ou tenant inexistente."
+          },
+          "500": {
+            "description": "Erro interno ao consultar o usuário na collection users do Firestore."
+          }
+        },
+        "summary": "Consulta um usuário pelo id.",
+        "tags": ["Users"]
+      }
+    },
+    "/v1/contacts": {
+      "get": {
+        "description": "Retorna os contatos armazenados na collection contacts do Firestore, filtrados exclusivamente pelo tenant informado via header ou query. O endpoint é tenant-aware, valida a existência do tenant no banco relacional e impede qualquer mistura de dados entre clientes.",
+        "operationId": "ContactsController_listContacts",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": false,
+            "in": "query",
+            "description": "Identificador do tenant (obrigatório quando o header x-tenant-id não estiver presente).",
+            "schema": {}
+          },
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "description": "Identificador do tenant responsável pelo contexto dos contatos retornados.",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Contatos listados com sucesso para o tenant informado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactsListResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "tenantId ausente ou inválido, impedindo a listagem no escopo correto."
+          },
+          "404": {
+            "description": "Tenant informado não foi encontrado na base de dados."
+          },
+          "500": {
+            "description": "Erro interno ao consultar a collection contacts no Firestore."
+          }
+        },
+        "summary": "Lista contatos do tenant.",
+        "tags": ["Contacts"]
+      },
+      "post": {
+        "description": "Cria um documento na collection contacts do Firestore com os dados fornecidos. O tenant pode ser informado via header x-tenant-id ou no body; quando ambos estiverem presentes, devem coincidir. O serviço valida a existência do tenant no banco relacional antes de persistir o contato.",
+        "operationId": "ContactsController_createContact",
+        "parameters": [
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "description": "Identificador do tenant responsável pelo contato a ser criado.",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Payload completo do contato, incluindo timestamps ISO, identificadores de WABA e prévia da última mensagem.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateContactDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Contato criado com sucesso e identificado pelo id do documento no Firestore.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ContactResponseDto" }
+              }
+            }
+          },
+          "400": {
+            "description": "Payload inválido, tenantId ausente/inválido ou divergência entre header e body."
+          },
+          "404": {
+            "description": "Tenant informado não foi encontrado na base de dados."
+          },
+          "500": {
+            "description": "Erro interno ao persistir o contato na collection contacts."
+          }
+        },
+        "summary": "Cria um novo contato para um tenant.",
+        "tags": ["Contacts"]
+      }
+    },
+    "/v1/contacts/{contactId}": {
+      "get": {
+        "description": "Retorna um contato específico da collection contacts do Firestore, validando o tenant informado via header ou query para manter isolamento multi-tenant. Caso o contato não pertença ao tenant informado, o endpoint responde como não encontrado.",
+        "operationId": "ContactsController_getContactById",
+        "parameters": [
+          {
+            "name": "contactId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador do documento do contato na collection contacts.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "tenantId",
+            "required": false,
+            "in": "query",
+            "description": "Identificador do tenant (obrigatório quando o header x-tenant-id não estiver presente).",
+            "schema": {}
+          },
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "description": "Identificador do tenant responsável pelo contato a ser consultado.",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Contato encontrado e retornado com sucesso para o tenant informado.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ContactResponseDto" }
+              }
+            }
+          },
+          "400": {
+            "description": "tenantId ausente ou inválido, impedindo a consulta no escopo correto."
+          },
+          "404": {
+            "description": "Contato não encontrado para o id informado ou tenant inexistente."
+          },
+          "500": {
+            "description": "Erro interno ao consultar o contato na collection contacts."
+          }
+        },
+        "summary": "Consulta um contato pelo id.",
+        "tags": ["Contacts"]
+      }
+    },
+    "/v1/menu-config/{menuConfigId}": {
+      "get": {
+        "description": "Retorna um documento especifico da collection menuConfig no Firestore, validando o tenant informado via header para manter isolamento multi-tenant. Caso o documento nao pertença ao tenant informado, a resposta sera de nao encontrado.",
+        "operationId": "MenuConfigController_getMenuConfigById",
+        "parameters": [
+          {
+            "name": "menuConfigId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador do documento na collection menuConfig.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "description": "Identificador do tenant responsavel pelo contexto da configuracao de menu.",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Configuracao de menu encontrada e retornada com sucesso para o tenant informado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MenuConfigResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "tenantId ausente ou invalido, impedindo a consulta no escopo correto."
+          },
+          "404": {
+            "description": "Configuracao de menu nao encontrada para o id informado ou tenant inexistente."
+          },
+          "500": {
+            "description": "Erro interno ao consultar a collection menuConfig no Firestore."
+          }
+        },
+        "summary": "Consulta configuracao de menu pelo id.",
+        "tags": ["MenuConfig"]
+      }
+    },
+    "/v1/menu-config/{menuConfigId}/built-in/items": {
+      "post": {
+        "description": "Adiciona um novo item ao array builtIn.items de um documento especifico da collection menuConfig, validando o tenant informado via header para manter isolamento multi-tenant.",
+        "operationId": "MenuConfigController_addBuiltInMenuItem",
+        "parameters": [
+          {
+            "name": "menuConfigId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador do documento na collection menuConfig.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "description": "Identificador do tenant responsavel pelo contexto da configuracao de menu.",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Payload com os dados do item de menu a ser adicionado.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AddMenuItemDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Configuracao de menu atualizada com o novo item em builtIn.items.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MenuConfigResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "tenantId ausente ou invalido, ou payload do item de menu invalido."
+          },
+          "404": {
+            "description": "Configuracao de menu nao encontrada para o id informado ou tenant inexistente."
+          },
+          "500": {
+            "description": "Erro interno ao atualizar a collection menuConfig no Firestore."
+          }
+        },
+        "summary": "Adicionar item em builtIn.items.",
+        "tags": ["MenuConfig"]
+      }
     }
   },
   "info": {
@@ -2881,6 +4122,11 @@
             "example": "+5511999999999",
             "description": "Número/identificador de origem da mensagem para condições operacionais por remetente (SENDER_EQUALS/SENDER_IN)."
           },
+          "inboundIdentity": {
+            "type": "string",
+            "example": "11111111111",
+            "description": "Canal de entrada (campo tecnico `inboundIdentity`) que recebeu a mensagem no tenant (ex.: numero legado, JID ou LID). Campo opcional e usado somente como contexto para condicoes operacionais de entrada (`INBOUND_IDENTITY_EQUALS`/`INBOUND_IDENTITY_IN`)."
+          },
           "channel": {
             "type": "string",
             "enum": ["whatsapp", "web", "api"],
@@ -2910,7 +4156,7 @@
             "description": "Mensagem simples opcional para cenários sem histórico estruturado. Use este campo quando houver apenas um turno de entrada. Se `messages[]` também for enviado, este campo é ignorado e prevalece `messages[]`."
           },
           "meta": {
-            "description": "Metadados opcionais da mensagem atual, usados por regras operacionais de remetente e rastreabilidade.",
+            "description": "Metadados opcionais da mensagem atual. `fromPhone` representa o remetente; `inboundIdentity` representa o canal de entrada do tenant (JID/LID/numero) por onde a mensagem chegou. Nesta versao, `inboundIdentity` e usado somente na avaliacao de regras operacionais.",
             "allOf": [{ "$ref": "#/components/schemas/RagChatMetaDto" }]
           },
           "conversationId": {
@@ -2920,8 +4166,13 @@
           },
           "summary": {
             "type": "string",
-            "example": "Resumo: cliente perguntou sobre convenios e horarios; atendente informou horario comercial; agora pergunta se atende Unimed.",
+            "example": "Resumo: cliente perguntou sobre convênios e horarios; atendente informou horario comercial; agora pergunta se atende Unimed.",
             "description": "Resumo opcional da conversa enviado pelo cliente (compatível com /ai/conversations/summary) para preservar contexto entre turnos. Este valor é contexto transitório: não é persistido em banco, é normalizado com trim e truncado internamente (até 2000 caracteres). O backend injeta o conteúdo no prompt em bloco delimitado como texto do usuário (anti-injection), nunca como instrução de sistema. Em retrieval, o resumo é usado de forma seletiva (perguntas curtas ou anafóricas) e com limite menor para consulta semântica, reduzindo risco de ruído."
+          },
+          "ragInstructions": {
+            "type": "string",
+            "example": "Responda de forma curta e profissional. Se a pergunta envolver agenda, pergunte datas disponíveis.",
+            "description": "Instruções temporárias opcionais para esta execução de /ai/chat. O backend usa este campo em runtime para orientar o comportamento da LLM e como hint controlado de retrieval. O conteúdo completo não é persistido em banco. Para observabilidade, somente metadados de auditoria podem ser persistidos no AiMessageLog: `ragInstructionsApplied` (boolean), `ragInstructionsPreview` (texto truncado) e `ragInstructionsRejectReason` (motivo de rejeição). Se o conteúdo indicar tentativa de injection (ex.: pedir para ignorar regras/sistema, pedir segredos, bypass/jailbreak), o campo é ignorado. Não envie segredos neste campo."
           }
         }
       },
@@ -2960,13 +4211,31 @@
               "reason": "Mensagem indica solicitacao de agendamento."
             }
           },
+          "responsePriority": {
+            "type": "string",
+            "enum": ["URGENT", "HIGH", "MEDIUM", "LOW", "UNPRIORITIZED"],
+            "example": "UNPRIORITIZED",
+            "description": "Criticidade operacional da resposta final para priorização de atendimento. O valor é calculado com base na pergunta atual, contexto disponível e resposta final. Quando o fluxo não executa classificação de criticidade por LLM (por exemplo guards, respostas diretas ou fallback sem geração), o valor retornado é `UNPRIORITIZED`."
+          },
+          "queueKey": {
+            "type": "string",
+            "example": "NO_QUEUE",
+            "description": "Chave da fila operacional classificada para a conversa no contexto do tenant. O valor representa o grupo responsável pelo atendimento e usa NO_QUEUE quando não houver fila aplicável com segurança."
+          },
           "quality": { "$ref": "#/components/schemas/RagQualityScoreDto" },
-          "blocked": { "type": "boolean", "example": false }
+          "blocked": { "type": "boolean", "example": false },
+          "ragInstructionsApplied": {
+            "type": "boolean",
+            "example": true,
+            "description": "Indica se o campo opcional ragInstructions foi aceito e aplicado nesta execução. Quando false, o chat pode ter ignorado o campo por ausência, vazio ou conteúdo rejeitado por guard de segurança."
+          }
         },
         "required": [
           "question",
           "answer",
           "classification",
+          "responsePriority",
+          "queueKey",
           "quality",
           "blocked"
         ]
@@ -3097,7 +4366,38 @@
             ],
             "example": "RAG"
           },
+          "responsePriority": {
+            "type": "string",
+            "enum": ["URGENT", "HIGH", "MEDIUM", "LOW", "UNPRIORITIZED"],
+            "example": "UNPRIORITIZED",
+            "description": "Nível de criticidade operacional da resposta. Em fluxos sem classificação via LLM, o valor padrão é UNPRIORITIZED."
+          },
           "confidenceScore": { "type": "object", "example": 0.82 },
+          "queueKey": {
+            "type": "string",
+            "example": "NO_QUEUE",
+            "description": "Chave da fila operacional classificada para a conversa. Usa NO_QUEUE quando não houver roteamento aplicável."
+          },
+          "queueName": {
+            "type": "object",
+            "example": "Financeiro",
+            "description": "Nome da fila classificada quando disponível no catálogo do tenant."
+          },
+          "queueConfidence": {
+            "type": "object",
+            "example": 0.88,
+            "description": "Confiança da classificação de fila (0 a 1) quando houve decisão automática."
+          },
+          "queueReason": {
+            "type": "object",
+            "example": "Mensagem com contexto de cobrança e confirmação de pagamento.",
+            "description": "Justificativa operacional curta da classificação de fila registrada no log."
+          },
+          "inboundIdentity": {
+            "type": "object",
+            "example": "@clinica_orto_exemplo",
+            "description": "Identidade de entrada do tenant usada no runtime do chat para avaliação de regras operacionais por canal de entrada (número legado, JID ou LID)."
+          },
           "usedChunkIds": {
             "example": ["1", "2"],
             "type": "array",
@@ -3131,6 +4431,21 @@
             "example": 10,
             "description": "Prioridade da regra operacional aplicada (menor número = maior prioridade)."
           },
+          "ragInstructionsApplied": {
+            "type": "boolean",
+            "example": false,
+            "description": "Indica se ragInstructions foi aceito e aplicado no runtime desta execução."
+          },
+          "ragInstructionsPreview": {
+            "type": "object",
+            "example": "Responda de forma curta e profissional. Se envolver agenda, peça datas disponíveis.",
+            "description": "Prévia truncada de ragInstructions registrada para auditoria operacional."
+          },
+          "ragInstructionsRejectReason": {
+            "type": "object",
+            "example": "rag_instructions_rejected_injection:ignore previous",
+            "description": "Motivo técnico quando ragInstructions foi rejeitado por guard de segurança."
+          },
           "resolvedByHuman": { "type": "boolean", "example": false },
           "resolutionReason": {
             "type": "object",
@@ -3147,8 +4462,11 @@
           "userMessage",
           "aiResponse",
           "responseType",
+          "responsePriority",
+          "queueKey",
           "usedChunkIds",
           "usedChunkScores",
+          "ragInstructionsApplied",
           "resolvedByHuman",
           "createdAt"
         ]
@@ -3366,6 +4684,8 @@
               "INTENTION_RULES",
               "INTENTION_EXAMPLES",
               "CONVERSATION_SUMMARY",
+              "RESPONSE_PRIORITY",
+              "QUEUE_ROUTING",
               "REWRITE_SYSTEM",
               "REWRITE_USER"
             ],
@@ -3433,6 +4753,8 @@
               "INTENTION_RULES",
               "INTENTION_EXAMPLES",
               "CONVERSATION_SUMMARY",
+              "RESPONSE_PRIORITY",
+              "QUEUE_ROUTING",
               "REWRITE_SYSTEM",
               "REWRITE_USER"
             ],
@@ -3486,6 +4808,8 @@
               "MESSAGE_REGEX",
               "SENDER_EQUALS",
               "SENDER_IN",
+              "INBOUND_IDENTITY_EQUALS",
+              "INBOUND_IDENTITY_IN",
               "CATEGORY_EQUALS",
               "CATEGORY_IN"
             ]
@@ -4033,6 +5357,93 @@
         },
         "required": ["name", "description", "examples", "color", "sortOrder"]
       },
+      "AdminTenantQueueDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "f2f5c2a0-1234-4b6f-9c6a-2f4a1d5d1c9a"
+          },
+          "tenantId": {
+            "type": "string",
+            "example": "b4bff1c7-9f3c-4e18-9e0d-6b2c0e8e1b32"
+          },
+          "key": { "type": "string", "example": "FINANCE" },
+          "name": { "type": "string", "example": "Financeiro" },
+          "description": {
+            "type": "string",
+            "example": "Fila para solicitações relacionadas a cobrança e pagamentos."
+          },
+          "examples": {
+            "example": [
+              "Preciso da segunda via do boleto",
+              "Quero confirmar pagamento"
+            ],
+            "type": "array",
+            "items": { "type": "array" }
+          },
+          "sortOrder": { "type": "number", "example": 20 },
+          "isActive": { "type": "boolean", "example": true },
+          "isSystem": { "type": "boolean", "example": false },
+          "createdAt": {
+            "type": "string",
+            "example": "2025-01-22T10:30:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "example": "2025-01-22T10:30:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "tenantId",
+          "key",
+          "name",
+          "description",
+          "examples",
+          "sortOrder",
+          "isActive",
+          "isSystem",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "AdminTenantQueuesResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/AdminTenantQueueDto" }
+          }
+        },
+        "required": ["items"]
+      },
+      "CreateQueueDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "FINANCE",
+            "description": "Chave de domínio da fila no contexto do tenant. Este campo é tenant-managed (string) e não enum global fixo; novas keys podem ser criadas sem migration de banco, respeitando validação de formato e unicidade por tenant."
+          },
+          "name": { "type": "string", "example": "Financeiro" },
+          "description": {
+            "type": "string",
+            "example": "Fila para solicitações relacionadas a cobrança e pagamentos."
+          },
+          "examples": {
+            "example": [
+              "Preciso da segunda via do boleto",
+              "Quero confirmar pagamento"
+            ],
+            "type": "array",
+            "items": { "type": "array" }
+          },
+          "sortOrder": { "type": "number", "example": 20 },
+          "isActive": { "type": "boolean", "example": true }
+        },
+        "required": ["key", "name", "description", "examples", "sortOrder"]
+      },
       "UpdateCategoryDto": {
         "type": "object",
         "properties": {
@@ -4053,6 +5464,152 @@
           "sortOrder": { "type": "number", "example": 10 },
           "isActive": { "type": "boolean", "example": false }
         }
+      },
+      "UpdateQueueDto": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "example": "Financeiro" },
+          "description": {
+            "type": "string",
+            "example": "Fila para solicitações relacionadas a cobrança e pagamentos."
+          },
+          "examples": {
+            "example": [
+              "Preciso da segunda via do boleto",
+              "Quero confirmar pagamento"
+            ],
+            "type": "array",
+            "items": { "type": "array" }
+          },
+          "sortOrder": { "type": "number", "example": 20 },
+          "isActive": { "type": "boolean", "example": false }
+        }
+      },
+      "AdminQueueDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "f2f5c2a0-1234-4b6f-9c6a-2f4a1d5d1c9a"
+          },
+          "tenantId": {
+            "type": "string",
+            "example": "b4bff1c7-9f3c-4e18-9e0d-6b2c0e8e1b32"
+          },
+          "key": { "type": "string", "example": "FINANCE" },
+          "name": { "type": "string", "example": "Financeiro" },
+          "description": {
+            "type": "string",
+            "example": "Fila para solicitações relacionadas a cobrança e pagamentos."
+          },
+          "examples": {
+            "example": [
+              "Preciso da segunda via do boleto",
+              "Quero confirmar pagamento"
+            ],
+            "type": "array",
+            "items": { "type": "array" }
+          },
+          "sortOrder": { "type": "number", "example": 20 },
+          "isActive": { "type": "boolean", "example": true },
+          "isSystem": {
+            "type": "boolean",
+            "example": false,
+            "description": "Indica se a fila é de sistema (protegida). Quando `true`, representa uma fila operacional nativa da plataforma (ex.: `NO_QUEUE`) com restrições de governança, como bloqueio de desativação para preservar fallback seguro do roteamento."
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2025-01-22T10:30:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "example": "2025-01-22T10:30:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "tenantId",
+          "key",
+          "name",
+          "description",
+          "examples",
+          "sortOrder",
+          "isActive",
+          "isSystem",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "AdminQueuesResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/AdminQueueDto" }
+          }
+        },
+        "required": ["items"]
+      },
+      "PublicQueueDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "f2f5c2a0-1234-4b6f-9c6a-2f4a1d5d1c9a"
+          },
+          "tenantId": {
+            "type": "string",
+            "example": "b4bff1c7-9f3c-4e18-9e0d-6b2c0e8e1b32"
+          },
+          "key": { "type": "string", "example": "FINANCE" },
+          "name": { "type": "string", "example": "Financeiro" },
+          "description": {
+            "type": "string",
+            "example": "Fila para solicitações relacionadas a cobrança e pagamentos."
+          },
+          "examples": {
+            "example": [
+              "Preciso da segunda via do boleto",
+              "Quero confirmar pagamento"
+            ],
+            "type": "array",
+            "items": { "type": "array" }
+          },
+          "sortOrder": { "type": "number", "example": 20 },
+          "isActive": { "type": "boolean", "example": true },
+          "isSystem": { "type": "boolean", "example": false },
+          "createdAt": {
+            "type": "string",
+            "example": "2025-01-22T10:30:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "example": "2025-01-22T10:30:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "tenantId",
+          "key",
+          "name",
+          "description",
+          "examples",
+          "sortOrder",
+          "isActive",
+          "isSystem",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "PublicQueuesResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PublicQueueDto" }
+          }
+        },
+        "required": ["items"]
       },
       "ClassifyMessageDto": {
         "type": "object",
@@ -4092,6 +5649,109 @@
           "needsHumanReview"
         ]
       },
+      "StartWhatsappOnboardingDto": {
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "description": "Identificador do tenant alvo da conexão com Meta.",
+            "example": "clinica_super_med"
+          }
+        },
+        "required": ["tenantId"]
+      },
+      "StartWhatsappOnboardingResponseDto": {
+        "type": "object",
+        "properties": {
+          "authorizationUrl": {
+            "type": "string",
+            "description": "URL de autorização Meta OAuth/HES para redirecionar o browser."
+          }
+        },
+        "required": ["authorizationUrl"]
+      },
+      "WhatsappOnboardingCallbackDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Authorization code retornado pelo OAuth Meta."
+          },
+          "state": {
+            "type": "string",
+            "description": "State assinado emitido pelo backend no /start."
+          }
+        },
+        "required": ["code", "state"]
+      },
+      "WhatsappOnboardingCallbackResponseDto": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean", "example": true },
+          "tenantMeta": {
+            "type": "object",
+            "example": {
+              "businessPortfolioId": "1234567890",
+              "wabaId": "1234567899",
+              "phoneNumberId": "10987654321"
+            }
+          }
+        },
+        "required": ["ok", "tenantMeta"]
+      },
+      "TenantResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "tenant_123",
+            "description": "Identificador do documento na collection tenants."
+          },
+          "alias": {
+            "type": "string",
+            "example": "clinica_santa_ana",
+            "description": "Alias legível para o tenant cadastrado."
+          },
+          "ownerId": {
+            "type": "string",
+            "example": "user_abc",
+            "description": "Identificador do usuário proprietário do tenant."
+          }
+        },
+        "required": ["id", "alias", "ownerId"]
+      },
+      "TenantsListResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Lista de tenants associados ao ownerId informado.",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TenantResponseDto" }
+          }
+        },
+        "required": ["items"]
+      },
+      "CreateOwnerTenantDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "tenant_123",
+            "description": "Identificador do documento na collection tenants."
+          },
+          "alias": {
+            "type": "string",
+            "example": "clinica_santa_ana",
+            "description": "Alias legível para o tenant cadastrado."
+          },
+          "ownerId": {
+            "type": "string",
+            "example": "user_abc",
+            "description": "Identificador do usuário proprietário do tenant."
+          }
+        },
+        "required": ["id", "alias", "ownerId"]
+      },
       "ProcessWhatsappEventDto": {
         "type": "object",
         "properties": { "eventId": { "type": "string", "example": "evt_123" } },
@@ -4108,6 +5768,27 @@
           "eventId": { "type": "string", "example": "evt_123" }
         },
         "required": ["status", "eventId"]
+      },
+      "ReprocessReceivedWhatsappEventResponseDto": {
+        "type": "object",
+        "properties": {
+          "candidateCount": { "type": "number", "example": 3 },
+          "processedCount": { "type": "number", "example": 2 },
+          "alreadyProcessedCount": { "type": "number", "example": 1 },
+          "failedCount": { "type": "number", "example": 0 },
+          "failedEventIds": {
+            "example": ["evt_456"],
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": [
+          "candidateCount",
+          "processedCount",
+          "alreadyProcessedCount",
+          "failedCount",
+          "failedEventIds"
+        ]
       },
       "Object": { "type": "object", "properties": {} },
       "MessageTextDto": {
@@ -4334,6 +6015,34 @@
         },
         "required": ["messageId", "status", "createdAt", "updatedAt"]
       },
+      "SendTemplateDto": {
+        "type": "object",
+        "properties": {
+          "templateName": {
+            "type": "string",
+            "enum": ["confirmacao_consulta_medica_v1", "hello_world"],
+            "example": "confirmacao_consulta_medica"
+          }
+        },
+        "required": ["templateName"]
+      },
+      "ConversationWindowResponseDto": {
+        "type": "object",
+        "properties": {
+          "expiresAt": {
+            "type": "string",
+            "example": "2025-01-22T10:30:00.000Z"
+          },
+          "remainingMs": { "type": "number", "example": 3600000 },
+          "isOpen": { "type": "boolean", "example": true },
+          "lastStartReason": {
+            "type": "string",
+            "enum": ["inbound", "template"],
+            "example": "inbound"
+          }
+        },
+        "required": ["expiresAt", "remainingMs", "isOpen"]
+      },
       "ConversationListItemDto": {
         "type": "object",
         "properties": {
@@ -4357,6 +6066,10 @@
             "type": "string",
             "example": "2025-01-22T10:35:00.000Z"
           },
+          "closedAt": {
+            "type": "string",
+            "example": "2025-01-22T11:15:00.000Z"
+          },
           "lastMessageDirection": {
             "type": "string",
             "enum": ["inbound", "outbound", "unknown"],
@@ -4366,6 +6079,18 @@
           "lastMessagePreview": {
             "type": "string",
             "example": "Oi, gostaria de agendar."
+          },
+          "window": {
+            "description": "Status derivado da janela de 24h, calculado a partir de conversation.window.",
+            "example": {
+              "expiresAt": "2025-01-22T10:30:00.000Z",
+              "remainingMs": 3600000,
+              "isOpen": true,
+              "lastStartReason": "inbound"
+            },
+            "allOf": [
+              { "$ref": "#/components/schemas/ConversationWindowResponseDto" }
+            ]
           }
         },
         "required": [
@@ -4391,6 +6116,50 @@
           }
         },
         "required": ["items"]
+      },
+      "UpdateConversationDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "in_progress",
+            "description": "Status atualizado da conversa, usado no fluxo operacional."
+          },
+          "category": {
+            "type": "string",
+            "example": "Agendamento",
+            "description": "Categoria operacional atribuída à conversa."
+          },
+          "priority": {
+            "type": "string",
+            "example": "urgent",
+            "description": "Prioridade operacional da conversa.",
+            "enum": ["emergency", "urgent", "high", "medium", "low"]
+          },
+          "queue": {
+            "type": "string",
+            "example": "scheduling",
+            "description": "Fila operacional associada à conversa.",
+            "enum": [
+              "finance",
+              "maintenance",
+              "concierge",
+              "scheduling",
+              "general"
+            ]
+          },
+          "lifecycle": {
+            "type": "string",
+            "example": "in_treatment",
+            "description": "Ciclo de vida atual da conversa.",
+            "enum": ["new", "in_treatment", "redirect", "ended"]
+          },
+          "assignedTo": {
+            "type": "string",
+            "example": "user_123",
+            "description": "Identificador do usuário responsável pela conversa."
+          }
+        }
       },
       "ProcessAiJobDto": {
         "type": "object",
@@ -4503,6 +6272,530 @@
           "note": { "type": "string", "example": "ok" }
         },
         "required": ["range", "openChatsCount", "note"]
+      },
+      "StatsOverviewAlertDto": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "stats-alert-1" },
+          "title": {
+            "type": "string",
+            "example": "Leitura parcial de conversas"
+          },
+          "description": {
+            "type": "string",
+            "example": "Parte dos KPIs pode estar parcial por limite de leitura."
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["warning", "danger"],
+            "example": "warning"
+          },
+          "timeAgo": { "type": "string", "example": "agora" }
+        },
+        "required": ["id", "title", "description", "severity", "timeAgo"]
+      },
+      "StatsOverviewResponseDto": {
+        "type": "object",
+        "properties": {
+          "pendingTotal": { "type": "number", "example": 34 },
+          "urgentTotal": { "type": "number", "example": 6 },
+          "respondedToday": { "type": "number", "example": 58 },
+          "avgResponseMinutes": { "type": "number", "example": 18 },
+          "alerts": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/StatsOverviewAlertDto" }
+          }
+        },
+        "required": [
+          "pendingTotal",
+          "urgentTotal",
+          "respondedToday",
+          "avgResponseMinutes",
+          "alerts"
+        ]
+      },
+      "StatsByCategoryResponseDto": {
+        "type": "object",
+        "properties": {
+          "category": { "type": "string", "example": "Agendamento" },
+          "total": { "type": "number", "example": 24 }
+        },
+        "required": ["category", "total"]
+      },
+      "StatsPriorityStatusResponseDto": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "example": "Urgente" },
+          "opened": { "type": "number", "example": 10 },
+          "closed": { "type": "number", "example": 4 }
+        },
+        "required": ["name", "opened", "closed"]
+      },
+      "StatsOperatorAverageResponseDto": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "example": "Marina" },
+          "avg": { "type": "number", "example": 18 },
+          "totalClosed": { "type": "number", "example": 12 }
+        },
+        "required": ["name", "avg", "totalClosed"]
+      },
+      "UserResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "user_123",
+            "description": "Identificador do documento na collection users."
+          },
+          "name": {
+            "type": "string",
+            "example": "Maria Silva",
+            "description": "Nome do usuário cadastrado."
+          },
+          "tenantId": {
+            "type": "string",
+            "example": "tenant_a",
+            "description": "Identificador do tenant responsável pelo usuário."
+          },
+          "role": {
+            "type": "string",
+            "example": "Supervisor",
+            "description": "Perfil do usuário armazenado na collection users. Campo opcional."
+          }
+        },
+        "required": ["id", "name", "tenantId"]
+      },
+      "UsersListResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Lista de usuários cadastrados para o tenant informado.",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/UserResponseDto" }
+          }
+        },
+        "required": ["items"]
+      },
+      "CreateUserDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Maria Silva",
+            "description": "Nome do usuário a ser criado na collection users."
+          },
+          "tenantId": {
+            "type": "string",
+            "example": "tenant_a",
+            "description": "Identificador do tenant responsável pelo usuário. Deve respeitar o padrão de 2 a 40 caracteres alfanuméricos, hífen ou underscore."
+          },
+          "role": {
+            "type": "string",
+            "example": "Supervisor",
+            "description": "Perfil do usuário na collection users. Campo opcional para controle de acesso."
+          }
+        },
+        "required": ["name", "tenantId"]
+      },
+      "ContactProfileResponseDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Maria Silva",
+            "description": "Nome do contato conforme perfil do WhatsApp."
+          }
+        },
+        "required": ["name"]
+      },
+      "ContactResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "tenant_a:waba_123:phone_456:wa_5511999999999",
+            "description": "Identificador do documento na collection contacts."
+          },
+          "displayPhoneNumber": {
+            "type": "string",
+            "example": "+55 11 99999-9999",
+            "description": "Número de telefone exibido para o contato."
+          },
+          "lastMessageAt": {
+            "type": "string",
+            "example": "2025-01-22T10:30:00.000Z",
+            "description": "Timestamp ISO da última mensagem enviada ou recebida."
+          },
+          "lastMessagePreview": {
+            "type": "string",
+            "example": "Olá! Podemos confirmar sua consulta?",
+            "description": "Prévia textual da última mensagem associada ao contato."
+          },
+          "lastOpenConversationId": {
+            "type": "string",
+            "example": "conv_01hxy5m5y1c9bqz1s5w6z1tq",
+            "description": "Identificador da última conversação aberta para o contato."
+          },
+          "phoneNumberId": {
+            "type": "string",
+            "example": "phone_456",
+            "description": "Identificador do telefone do contato dentro da conta WABA."
+          },
+          "profile": {
+            "description": "Objeto de perfil do contato contendo o nome exibido.",
+            "allOf": [
+              { "$ref": "#/components/schemas/ContactProfileResponseDto" }
+            ]
+          },
+          "tenantId": {
+            "type": "string",
+            "example": "tenant_a",
+            "description": "Identificador do tenant responsável pelo contato."
+          },
+          "waIdCustomer": {
+            "type": "string",
+            "example": "5511999999999",
+            "description": "Identificador do cliente na API do WhatsApp."
+          },
+          "wabaId": {
+            "type": "string",
+            "example": "waba_123",
+            "description": "Identificador da conta WABA (WhatsApp Business Account)."
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2025-01-22T10:30:00.000Z",
+            "description": "Timestamp ISO de criação do documento na collection contacts."
+          },
+          "updatedAt": {
+            "type": "string",
+            "example": "2025-01-22T10:30:00.000Z",
+            "description": "Timestamp ISO da última atualização do contato."
+          }
+        },
+        "required": [
+          "id",
+          "displayPhoneNumber",
+          "lastMessageAt",
+          "lastMessagePreview",
+          "phoneNumberId",
+          "profile",
+          "tenantId",
+          "waIdCustomer",
+          "wabaId",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "ContactsListResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Lista de contatos cadastrados para o tenant informado.",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ContactResponseDto" }
+          }
+        },
+        "required": ["items"]
+      },
+      "CreateContactProfileDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Maria Silva",
+            "description": "Nome do contato conforme informado pelo perfil WhatsApp."
+          }
+        },
+        "required": ["name"]
+      },
+      "CreateContactDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "tenant_a:waba_123:phone_456:wa_5511999999999",
+            "description": "Identificador do documento na collection contacts."
+          },
+          "displayPhoneNumber": {
+            "type": "string",
+            "example": "+55 11 99999-9999",
+            "description": "Número de telefone exibido para o contato."
+          },
+          "lastMessageAt": {
+            "type": "string",
+            "example": "2025-01-22T10:30:00.000Z",
+            "description": "Timestamp ISO da última mensagem enviada ou recebida."
+          },
+          "lastMessagePreview": {
+            "type": "string",
+            "example": "Olá! Podemos confirmar sua consulta?",
+            "description": "Prévia textual da última mensagem associada ao contato."
+          },
+          "lastOpenConversationId": {
+            "type": "string",
+            "example": "conv_01hxy5m5y1c9bqz1s5w6z1tq",
+            "description": "Identificador da última conversação aberta para o contato, quando aplicável."
+          },
+          "phoneNumberId": {
+            "type": "string",
+            "example": "phone_456",
+            "description": "Identificador do telefone do contato dentro da conta WABA."
+          },
+          "profile": {
+            "description": "Objeto de perfil do contato contendo o nome exibido no WhatsApp.",
+            "allOf": [
+              { "$ref": "#/components/schemas/CreateContactProfileDto" }
+            ]
+          },
+          "tenantId": {
+            "type": "string",
+            "example": "tenant_a",
+            "description": "Identificador do tenant responsável pelo contato. Deve respeitar o padrão de 2 a 40 caracteres alfanuméricos, hífen ou underscore."
+          },
+          "waIdCustomer": {
+            "type": "string",
+            "example": "5511999999999",
+            "description": "Identificador do cliente na API do WhatsApp."
+          },
+          "wabaId": {
+            "type": "string",
+            "example": "waba_123",
+            "description": "Identificador da conta WABA (WhatsApp Business Account)."
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2025-01-22T10:30:00.000Z",
+            "description": "Timestamp ISO de criação do documento na collection contacts."
+          },
+          "updatedAt": {
+            "type": "string",
+            "example": "2025-01-22T10:30:00.000Z",
+            "description": "Timestamp ISO de atualização do documento. Em criação, deve ser igual ao createdAt."
+          }
+        },
+        "required": [
+          "id",
+          "displayPhoneNumber",
+          "lastMessageAt",
+          "lastMessagePreview",
+          "phoneNumberId",
+          "profile",
+          "tenantId",
+          "waIdCustomer",
+          "wabaId",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "ActionResponseDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "navigate",
+            "description": "Tipo de acao a ser executada pelo item de menu."
+          },
+          "to": {
+            "type": "string",
+            "example": "/dashboard",
+            "description": "Destino opcional para a acao configurada."
+          }
+        },
+        "required": ["type"]
+      },
+      "FilterResponseDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "status",
+            "description": "Chave do filtro aplicado ao menu."
+          },
+          "value": {
+            "type": "string",
+            "example": "active",
+            "description": "Valor do filtro aplicado ao menu."
+          }
+        },
+        "required": ["key", "value"]
+      },
+      "MenuItemResponseDto": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "description": "Acao executada ao clicar no item de menu.",
+            "allOf": [{ "$ref": "#/components/schemas/ActionResponseDto" }]
+          },
+          "icon": {
+            "type": "string",
+            "example": "dashboard",
+            "description": "Identificador do icone associado ao item."
+          },
+          "id": {
+            "type": "string",
+            "example": "menu_item_01",
+            "description": "Identificador unico do item de menu."
+          },
+          "label": {
+            "type": "string",
+            "example": "Visao geral",
+            "description": "Rotulo exibido no item de menu."
+          },
+          "order": {
+            "type": "number",
+            "example": 1,
+            "description": "Ordem de exibicao do item dentro da secao."
+          },
+          "filters": {
+            "description": "Filtros adicionais aplicados ao item.",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/FilterResponseDto" }
+          },
+          "roles": {
+            "example": ["Supervisor", "Operador"],
+            "description": "Roles autorizadas a visualizar o item.",
+            "type": "array",
+            "items": { "type": "array" }
+          }
+        },
+        "required": ["action", "icon", "id", "label", "order"]
+      },
+      "BuiltInResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Itens de menu embutidos na configuracao.",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MenuItemResponseDto" }
+          }
+        },
+        "required": ["items"]
+      },
+      "SectionResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Itens de menu associados a esta secao.",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MenuItemResponseDto" }
+          },
+          "key": {
+            "type": "string",
+            "example": "reports",
+            "description": "Chave unica da secao de menu."
+          },
+          "label": {
+            "type": "string",
+            "example": "Relatorios",
+            "description": "Rotulo exibido para a secao."
+          },
+          "order": {
+            "type": "number",
+            "example": 2,
+            "description": "Ordem de exibicao da secao no menu."
+          }
+        },
+        "required": ["items", "key", "label", "order"]
+      },
+      "MenuConfigResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "menu_config_01",
+            "description": "Identificador do documento na collection menuConfig."
+          },
+          "builtIn": {
+            "description": "Itens embutidos padrao da configuracao de menu.",
+            "allOf": [{ "$ref": "#/components/schemas/BuiltInResponseDto" }]
+          },
+          "sections": {
+            "description": "Secoes configuradas para o menu.",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SectionResponseDto" }
+          },
+          "updatedAt": {
+            "type": "string",
+            "example": "2025-02-10T12:30:00.000Z",
+            "description": "Timestamp ISO da ultima atualizacao da configuracao."
+          }
+        },
+        "required": ["id", "builtIn", "sections", "updatedAt"]
+      },
+      "AddMenuItemActionDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "navigate",
+            "description": "Tipo de acao executada ao clicar no item."
+          },
+          "to": {
+            "type": "string",
+            "example": "/dashboard",
+            "description": "Destino opcional para a acao configurada."
+          }
+        },
+        "required": ["type"]
+      },
+      "AddMenuItemFilterDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "status",
+            "description": "Chave do filtro aplicado ao item de menu."
+          },
+          "value": {
+            "type": "string",
+            "example": "active",
+            "description": "Valor do filtro aplicado ao item de menu."
+          }
+        },
+        "required": ["key", "value"]
+      },
+      "AddMenuItemDto": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "description": "Acao executada ao clicar no item de menu.",
+            "allOf": [{ "$ref": "#/components/schemas/AddMenuItemActionDto" }]
+          },
+          "icon": {
+            "type": "string",
+            "example": "dashboard",
+            "description": "Identificador do icone associado ao item."
+          },
+          "id": {
+            "type": "string",
+            "example": "menu_item_01",
+            "description": "Identificador unico do item de menu."
+          },
+          "label": {
+            "type": "string",
+            "example": "Visao geral",
+            "description": "Rotulo exibido no item de menu."
+          },
+          "order": {
+            "type": "number",
+            "example": 1,
+            "description": "Ordem de exibicao do item dentro da secao."
+          },
+          "filters": {
+            "description": "Filtros adicionais aplicados ao item.",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/AddMenuItemFilterDto" }
+          },
+          "roles": {
+            "example": ["Supervisor", "Operador"],
+            "description": "Roles autorizadas a visualizar o item.",
+            "type": "array",
+            "items": { "type": "array" }
+          }
+        },
+        "required": ["action", "icon", "id", "label", "order"]
       }
     }
   }
