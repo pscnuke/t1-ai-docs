@@ -46,7 +46,7 @@
 
 - projeto t1-ai-front
 - Next.js App Router com Auth Firebase + React Query + UI operacional por papel (useAuth.tsx, layout.tsx).
-- É a UX do usuário do sistema, do tenant
+- É a UX do usuário do sistema (operadores e supervisores)
 
 ## Objetivo
 
@@ -80,6 +80,7 @@
 
 - Mesmo método de autenticação do Front-End
 - Somente usuários com perfil 'admin' podem se logar (Firestore: users/role).
+- Somente usuários ativos podem se logar.
 - Deixe somente o quadro de login (não precisa daquele outro quadro do Front-End)
 - Coloque na tela de login o nome do sistema indicando que é o módulo de administração
 
