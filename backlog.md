@@ -104,7 +104,6 @@
 - Possibilidade de resetar a senha.
 - Possibilidade de desativar/ativar usuário.
 - Criar campos administativos de datas (data de criação e data da última atualização). Usar os nomes padrões para estes dois campos. Criar as funcionalidades para manter estes campos atualizados.
-- Criar campo de informe qual o usuário que fez a última modificação no registro do usuário. Criar as funcionalidades para que este campo esteja sempre atualizado.
 - Analise os demais campos que temos no front-end em relação ao Cadastro de Usuários (como lastLoginAt) e atualize-os tb da mesma forma como no front-end.
 - Temos 3 tipos de roles (perfis):
   - Operador: usuário comum do tenant
