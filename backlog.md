@@ -102,7 +102,6 @@
 
 - Além dos campos tradicionais, incluir seleção de tenant que pertence o usuário e qual o perfil (role).
 - Se baseie no Cadastro de Usuários do front-end (embora no front-end temos menos opções).
-- Possibilidade de resetar a senha.
 - Possibilidade de desativar/ativar usuário.
 - Criar campos administativos de datas (data de criação e data da última atualização). Usar os nomes padrões para estes dois campos. Criar as funcionalidades para manter estes campos atualizados.
 - Analise os demais campos que temos no front-end em relação ao Cadastro de Usuários (como lastLoginAt) e atualize-os tb da mesma forma como no front-end.
