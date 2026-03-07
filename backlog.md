@@ -64,6 +64,7 @@
 - Inicializar git na pasta raiz.
 - Não alterar o projeto t1-ai-front.
 - Usar necessariamente os endpoints existentes no back-end. Se precisar de algum novo endpoint, peça minha autorização para criá-lo.
+- Para acessar o Firestore no GCP use a mesma forma que o front-end atualmente faz.
 - Quando se referenciar a RAG, use o termo Base de Conhecimento.
 - Quando se referenciar a tenant, use o termo unidade.
 - Desenvolva inicialmente os seguintes módulos:
