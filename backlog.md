@@ -66,38 +66,61 @@
 - Usar necessariamente os endpoints existentes no back-end. Se precisar de algum novo endpoint, peça minha autorização para criá-lo.
 - Para acessar o Firestore no GCP use a mesma forma que o front-end atualmente faz.
 - Quando se referenciar a RAG, use o termo Base de Conhecimento.
-- Quando se referenciar a tenant, use o termo unidade.
+- Quando se referenciar a tenant, use o termo Unidade.
 - Desenvolva inicialmente os seguintes módulos:
 
 1. Controle de acesso (login)
-2. Cadastro de Tenant
-3. Visualização de Logs do RAG
-4. Visualização das métricas do RAG
-5. Dashboard com estatísticas dos tenants e seus usuários
+2. Cadastro de Tenant (Cadastro de Unidades)
+3. Cadastro de Usuários
+4. Visualização de Logs do RAG
+5. Visualização das métricas do RAG
+6. Dashboard com estatísticas dos tenants e seus usuários
 
-### 1. Controlde de acesso
+### 1. Controlde de acesso (login)
 
 - Mesmo método de autenticação do Front-End
-- Somente usuários com perfil 'admin' podem se logar (Firestore: users/role)
+- Somente usuários com perfil 'admin' podem se logar (Firestore: users/role).
+- Deixe somente o quadro de login (não precisa daquele outro quadro do Front-End)
+- Coloque na tela de login o nome do sistema indicando que é o módulo de administração
 
-### 2. Cadastro de Tenant
+### 2. Cadastro de Unidades (tenant)
 
-- Módulo para cadastro (inclusão, modificação, desativação) do tenant
-- Deve interagir tanto com o cadastro de tenant no Firestore como no cadastro de tenant do Postgres
+- Módulo para cadastro (inclusão, modificação, desativação) do tenant.
+- Deve interagir tanto com o cadastro de tenant no Firestore como no cadastro de tenant do Postgres.
+- Campos mínimos:
+  - alias: um campo texto que indica um nome do tenant
+  - id: o id do tenant
+  - ownerId: o id do usuário proprietário do tenant
+  - campos de data de criação e data de atualização (usar nomes padrões)
+- No Firestore é a collections 'tenants'
+- No Postgress é a tabela 'Tenant'
 
-### 3. Visualização de Logs do RAG
+### 3. Cadastro de Usuários
+
+- Além dos campos tradicionais, incluir seleção de tenant que pertence o usuário e qual o perfil (role).
+- Possibilidade de resetar a senha.
+- Possibilidade de desativar/ativar usuário.
+- Criar campos administativos de datas (data de criação e data da última atualização). Usar os nomes padrões para estes dois campos. Criar as funcionalidades para manter estes campos atualizados.
+- Criar campo de informe qual o usuário que fez a última modificação no registro do usuário. Criar as funcionalidades para que este campo esteja sempre atualizado.
+- Temos 3 tipos de roles (perfis):
+  - Operador: usuário comum do tenant
+  - Supervisor: usuário com mais privilégios do tenant (é o administrador do tenant, tem os maiores privilégios do tenant)
+  - admin: super usuário, tem acesso a tudo, somos nós (desenvedores e mantenedores deste sistema)
+
+### 4. Visualização de Logs do RAG
 
 - Basicamente ver os logs da tabela AiMessageLog
 - Usar os endpoints já disponíveis no back-end (Admin AI Logs)
 
-### 4. Visualização das métricas do RAG
+### 5. Visualização das métricas do RAG
 
 - Mostrar os dados disponíveis dos endpoints de métricas do RAG
 - Usar os endpoints já disponíveis no back-end (Admin AI Métricas)
 
-### 5. Dashboard com estatísticas dos tenants e seus usuários
+### 6. Dashboard com estatísticas dos tenants e seus usuários
 
 - Dashboard mostrando informações sobre quantitativos de tenants, usuários, logs e métricas
+- Esse dashboard deve ser a tela inicial ao entrar no sistema
 
 ## Git
 
