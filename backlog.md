@@ -61,6 +61,7 @@
 - Respeite e use as mesmas versões de softwares dos dois projetos quando necessário.
 - Pasta raiz do projeto: t1-ai-admin.
 - Criar agents.md na pasta raiz.
+- Criar arquivo README.md, conforme padrão.
 - Inicializar git na pasta raiz.
 - Não alterar o projeto t1-ai-front.
 - Usar necessariamente os endpoints existentes no back-end. Se precisar de algum novo endpoint, peça minha autorização para criá-lo.
@@ -99,6 +100,7 @@
 ### 3. Cadastro de Usuários
 
 - Além dos campos tradicionais, incluir seleção de tenant que pertence o usuário e qual o perfil (role).
+- Se baseie no Cadastro de Usuários do front-end (embora no front-end temos menos opções).
 - Possibilidade de resetar a senha.
 - Possibilidade de desativar/ativar usuário.
 - Criar campos administativos de datas (data de criação e data da última atualização). Usar os nomes padrões para estes dois campos. Criar as funcionalidades para manter estes campos atualizados.
