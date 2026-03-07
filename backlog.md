@@ -68,6 +68,7 @@
 - Para acessar o Firestore no GCP use a mesma forma que o front-end atualmente faz.
 - Quando se referenciar a RAG, use o termo Base de Conhecimento.
 - Quando se referenciar a tenant, use o termo Unidade.
+- Use porta diferente da usada atualmente no front-end e back-end.
 - Desenvolva inicialmente os seguintes módulos:
 
 1. Controle de acesso (login)
