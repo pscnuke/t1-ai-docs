@@ -16,9 +16,9 @@
 
 # Projeto t1-ai-admin
 
-- Levando em consideração o contexto já estuado anteiormente, vamos fazer o planejamento para um novo projeto:
+- Levando em consideração o contexto já estudado anteiormente, vamos fazer o planejamento para um novo projeto:
   - O módulo de administração do sistema
-  - A seu usado pelos desenvolvedores e proprietários do sistema
+  - A ser usado pelos desenvolvedores e proprietários do sistema
 
 ## Contexto
 
@@ -48,15 +48,13 @@
 - Next.js App Router com Auth Firebase + React Query + UI operacional por papel (useAuth.tsx, layout.tsx).
 - É a UX do usuário do sistema, do tenant
 
-## Novo projeto: t1-ai-admin
-
-### Objetivo
+## Objetivo
 
 - Planejar e desenvolver o módulo de administração de nosso sistema de gestão de mensagens de WhatsApp.
 - Se o front-end é a UX do cliente, o t1-ai-admin é o UX de administração a ser usada por nós, desenvolvedores e mantenedore do sistema.
 - O nome do aplicativo é 'CommSupervisor Admin'
 
-### Especificações Gerais
+## Especificações Gerais
 
 - Deve ter o mesmo padrão de UX do front-end assim como a mesma stack.
 - Deve ter o mesmo Design System do front-end.
@@ -76,31 +74,31 @@
 4. Visualização das métricas do RAG
 5. Dashboard com estatísticas dos tenants e seus usuários
 
-#### 1. Controlde de acesso
+### 1. Controlde de acesso
 
 - Mesmo método de autenticação do Front-End
 - Somente usuários com perfil 'admin' podem se logar (Firestore: users/role)
 
-#### 2. Cadastro de Tenant
+### 2. Cadastro de Tenant
 
 - Módulo para cadastro (inclusão, modificação, desativação) do tenant
 - Deve interagir tanto com o cadastro de tenant no Firestore como no cadastro de tenant do Postgres
 
-#### 3. Visualização de Logs do RAG
+### 3. Visualização de Logs do RAG
 
 - Basicamente ver os logs da tabela AiMessageLog
 - Usar os endpoints já disponíveis no back-end (Admin AI Logs)
 
-#### 4. Visualização das métricas do RAG
+### 4. Visualização das métricas do RAG
 
 - Mostrar os dados disponíveis dos endpoints de métricas do RAG
 - Usar os endpoints já disponíveis no back-end (Admin AI Métricas)
 
-#### 5. Dashboard com estatísticas dos tenants e seus usuários
+### 5. Dashboard com estatísticas dos tenants e seus usuários
 
-- Dashboar mostrando informações sobre quantitativos de tenants, usuários, logs e métricas
+- Dashboard mostrando informações sobre quantitativos de tenants, usuários, logs e métricas
 
-### Git
+## Git
 
 - O projeto deve ser hospedado no github
 - O projeto vai estar na organização palmalabs (mesma organização dos outros dois)
@@ -108,7 +106,7 @@
 - Criar tal respositório
 - Inicializar o git
 
-### Ao final
+## Ao final
 
 - Ao final teremos 3 projetos:
 
