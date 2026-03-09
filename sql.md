@@ -46,6 +46,38 @@ LIMIT 5;
 
 # consulta Tenant
 select * from "Tenant";
+
+# apagar um Tenant específico
+BEGIN;
+
+DELETE FROM "MessageClassification"
+WHERE "tenantId" = 'bHAqF9Rr9Jgy70Dw7CrP';
+
+DELETE FROM "MessageCategory"
+WHERE "tenantId" = 'bHAqF9Rr9Jgy70Dw7CrP';
+
+DELETE FROM "ConversationQueue"
+WHERE "tenantId" = 'bHAqF9Rr9Jgy70Dw7CrP';
+
+DELETE FROM "PromptPack"
+WHERE "tenantId" = 'bHAqF9Rr9Jgy70Dw7CrP';
+
+DELETE FROM "OperationalRule"
+WHERE "tenantId" = 'bHAqF9Rr9Jgy70Dw7CrP';
+
+DELETE FROM "AiMessageLog"
+WHERE "tenantId" = 'bHAqF9Rr9Jgy70Dw7CrP';
+
+DELETE FROM "RagChunk"
+WHERE "tenantId" = 'bHAqF9Rr9Jgy70Dw7CrP';
+
+DELETE FROM "Tenant"
+WHERE "id" = 'bHAqF9Rr9Jgy70Dw7CrP';
+
+COMMIT;
+
+
+
 ```
 
 ## Categorias de Mensagens
