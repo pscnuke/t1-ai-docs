@@ -44,6 +44,10 @@ FROM "AiMessageLog"
 ORDER BY "createdAt" DESC
 LIMIT 5;
 
+SELECT "id", "tenantId", "responseType", "createdAt", "usedLlm"
+FROM "AiMessageLog" where "tenantId" = 'cAX0ZWfKhjRuxfCNdrfC'
+ORDER BY "createdAt" DESC;
+
 # consulta Tenant
 select * from "Tenant";
 
