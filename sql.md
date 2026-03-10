@@ -125,7 +125,7 @@ select "tenantId", "key", "content" from "PromptPack" where "tenantId" = 'cAX0ZW
 
 select "tenantId", "key", "content" from "PromptPack" where "tenantId" = 'cAX0ZWfKhjRuxfCNdrfC' and "key" = 'GREETINGS';
 
-select "key", "content" from "PromptPack" where "tenantId" = 'cAX0ZWfKhjRuxfCNdrfC' and "key" = 'SYSTEM';
+select "key", "content" from "PromptPack" where "tenantId" = 'Ks8gZvtT4zmhiZYSg08l' and "key" = 'SYSTEM';
 
 select "id", "tenantId", "key", "content", "createdAt","updatedAt"
 from "PromptPack" where "key" = 'CONVERSATION_SUMMARY';
